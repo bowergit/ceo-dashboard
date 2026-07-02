@@ -1,4 +1,4 @@
-<!doctype html>  
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -15,7 +15,7 @@
   }
   *{box-sizing:border-box} html,body{margin:0}
   body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.5;padding:20px;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1040px;margin:0  auto}
+  .wrap{max-width:1040px;margin:0 auto}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
   h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin:0}
   .eyebrow{font-family:'Space Grotesk';font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
@@ -87,7 +87,7 @@
   .rev-col .b.now{background:var(--gold)}
   .rev-col .v{font-family:'IBM Plex Mono';font-size:12px;margin-bottom:5px}
   .rev-col .yr{font-size:11px;color:var(--faint);margin-top:7px}
-  input[type=email]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
+  input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
   input:focus{outline:2px solid var(--gold);outline-offset:1px}
   .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
   .foot-note{color:var(--faint);font-size:11.5px;margin-top:26px;text-align:center;line-height:1.6}
@@ -172,10 +172,11 @@
     <div class="panel center">
       <div>
         <h2 style="margin-bottom:6px">Sign in to see your real numbers</h2>
-        <p class="small muted" style="max-width:44ch;margin:0 auto 14px">Your data is private. Enter your email and Supabase sends a one time sign in link.</p>
+        <p class="small muted" style="max-width:44ch;margin:0 auto 14px">Your data is private. Sign in with the email and password you set in Supabase.</p>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <input type="email" id="loginEmail" placeholder="danielbowermagic@gmail.com"/>
-          <button class="btn gold" id="loginBtn">Send link</button>
+          <input type="email" id="loginEmail" placeholder="danielbowermagic@gmail.com" autocomplete="username"/>
+          <input type="password" id="loginPass" placeholder="password" autocomplete="current-password"/>
+          <button class="btn gold" id="loginBtn">Sign in</button>
         </div>
         <div class="small" id="loginMsg" style="margin-top:12px;color:var(--muted)"></div>
       </div>
@@ -435,12 +436,17 @@
   document.getElementById("mLive").addEventListener("click",function(){setMode("live");});
   document.getElementById("refreshBtn").addEventListener("click",refresh);
   document.getElementById("loginBtn").addEventListener("click",async function(){
-    var email=document.getElementById("loginEmail").value.trim(); if(!email) return;
+    var email=document.getElementById("loginEmail").value.trim();
+    var pass=document.getElementById("loginPass").value;
+    if(!email||!pass){ document.getElementById("loginMsg").textContent="Enter your email and password."; return; }
     var client=await getClient(); if(!client){ showView("config"); return; }
-    document.getElementById("loginMsg").textContent="Sending...";
-    var res=await client.auth.signInWithOtp({email:email,options:{emailRedirectTo:location.href}});
-    document.getElementById("loginMsg").textContent=res.error? res.error.message : "Check your email for the sign in link, then come back to this page.";
+    document.getElementById("loginMsg").textContent="Signing in...";
+    var res=await client.auth.signInWithPassword({email:email,password:pass});
+    if(res.error){ document.getElementById("loginMsg").textContent=res.error.message; return; }
+    document.getElementById("loginMsg").textContent="";
+    loadLive();
   });
+  document.getElementById("loginPass").addEventListener("keydown",function(e){ if(e.key==="Enter") document.getElementById("loginBtn").click(); });
   document.getElementById("logoutBtn").addEventListener("click",async function(){ var client=await getClient(); if(client){ await client.auth.signOut(); } loadLive(); });
 
   // init: honour saved mode, and handle a magic-link redirect (which lands in Live)
