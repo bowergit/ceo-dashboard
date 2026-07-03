@@ -351,7 +351,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.5.0";
+    document.getElementById("versionLabel").textContent="v1.5.1";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -465,12 +465,18 @@
           if(p[1]===null) return '';
           var wcol=WEEK_COLS[weekIdx[weekKey(new Date(p[2].date))]];
           var bad=p[2].kg>limit;
-          var lx=Math.min(Math.max(p[0],left+28),left+w-28); // clamp label so it never clips at edges
+          var lx=Math.min(Math.max(p[0],left+50),left+w-50); // clamp so the tooltip box never clips at the edges
           var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
+          var labelText=fmtD(p[2].date)+': '+p[2].kg+'kg';
+          var boxW=labelText.length*5.6+14, boxH=18;
+          var boxX=lx-boxW/2, boxY=ly-boxH+4;
           return '<g class="point-group" style="cursor:pointer">'+
             '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="transparent"></circle>'+ // bigger hover target
             '<circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4" style="stroke:'+wcol+(bad?'':';fill:var(--panel)')+'"></circle>'+
-            '<text class="point-label" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:'+wcol+';font-weight:600;pointer-events:none;transition:.1s">'+fmtD(p[2].date)+': '+p[2].kg+'kg</text></g>';
+            '<g class="point-tip" style="opacity:0;pointer-events:none;transition:.1s">'+
+              '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
+              '<text x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+wcol+';font-weight:600">'+labelText+'</text>'+
+            '</g></g>';
         }).join("")+'</g>'+
         '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
@@ -480,12 +486,12 @@
       var pointGroups = chart.querySelectorAll(".point-group");
       pointGroups.forEach(function(g) {
         g.addEventListener("mouseenter", function() {
-          var label = g.querySelector(".point-label");
-          if (label) label.style.opacity = "1";
+          var tip = g.querySelector(".point-tip");
+          if (tip) tip.style.opacity = "1";
         });
         g.addEventListener("mouseleave", function() {
-          var label = g.querySelector(".point-label");
-          if (label) label.style.opacity = "0";
+          var tip = g.querySelector(".point-tip");
+          if (tip) tip.style.opacity = "0";
         });
       });
     }
@@ -517,7 +523,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.5.0";
+    document.getElementById("versionLabel").textContent="v1.5.1";
   }
 
   // ---------- modes ----------
