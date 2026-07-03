@@ -64,6 +64,23 @@
   .kpi .big{font-family:'Space Grotesk';font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.01em}
   .kpi .big.money{font-family:'IBM Plex Mono';font-size:26px;font-weight:600}
   .kpi .foot{font-size:12px;color:var(--faint);margin-top:6px}
+  .income-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+  .income-card summary{list-style:none;cursor:pointer;padding:16px 42px 16px 18px;position:relative}
+  .income-card summary::-webkit-details-marker{display:none}
+  .income-card summary::after{content:"▾";position:absolute;right:18px;top:18px;color:var(--gold);font-size:13px;transition:.15s}
+  .income-card[open] summary::after{transform:rotate(180deg)}
+  .income-card .lab{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+  .income-card .big{font-family:'Space Grotesk';font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.01em}
+  .income-card .big.money{font-family:'IBM Plex Mono';font-size:26px;font-weight:600}
+  .income-card .foot{font-size:12px;color:var(--faint);margin-top:6px}
+  .income-card .income-top{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .income-card .chev{color:var(--gold);font-size:13px;transition:.15s}
+  .income-card[open] .chev{transform:rotate(180deg)}
+  .income-detail{border-top:1px solid var(--line);padding:13px 18px 16px;background:rgba(28,35,45,.5)}
+  .mini-list{display:grid;gap:8px}
+  .mini-row{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+  .mini-row strong{color:var(--text);font-weight:600}
+  .mini-row .amount{font-family:'IBM Plex Mono';color:var(--gold)}
   .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
   .pill.ok{color:var(--ok);background:rgba(63,185,80,.12)} .pill.watch{color:var(--watch);background:rgba(210,153,34,.12)} .pill.behind{color:var(--behind);background:rgba(248,81,73,.12)}
   .attention{margin-bottom:16px}
@@ -100,8 +117,9 @@
   .weight-chart .baseline{stroke:var(--ok);stroke-width:1;stroke-dasharray:4 4;opacity:.75}
   .weight-chart .limit{stroke:var(--behind);stroke-width:1;stroke-dasharray:3 4;opacity:.75}
   .weight-chart .line{fill:none;stroke:var(--gold);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-  .weight-chart .point{fill:var(--panel);stroke:var(--gold);stroke-width:2;cursor:pointer;transition:.1s}
-  .weight-chart .point:hover{r:5;filter:drop-shadow(0 0 4px rgba(201,162,75,.5))}
+  .weight-chart .point{stroke-width:2;cursor:pointer;transition:.1s}
+  .weight-chart .point.good{fill:var(--ok);stroke:var(--ok)}
+  .weight-chart .point:hover{r:5;filter:drop-shadow(0 0 4px rgba(63,185,80,.5))}
   .weight-chart .point.bad{stroke:var(--behind);fill:var(--behind)}
   .weight-chart .point.bad:hover{filter:drop-shadow(0 0 4px rgba(248,81,73,.5))}
   .weight-chart text{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--faint)}
@@ -183,17 +201,22 @@
 
     <div class="sect-title"><h2>Income</h2><span class="small faint">magic and maths, kept apart</span></div>
     <div class="grid g2">
-      <div class="kpi">
+      <details class="income-card" id="magicCard">
+        <summary>
         <div class="lab">Magic <span class="faint" style="font-weight:400">· close up magic and hosting</span></div>
         <div class="big money" id="magicIncome">--</div>
         <div class="foot" id="magicFoot"></div>
-      </div>
-      <div class="kpi">
+        </summary>
+        <div class="income-detail" id="magicDetail"></div>
+      </details>
+      <details class="income-card" id="mathsCard">
+        <summary>
         <div class="lab">Maths <span class="faint" style="font-weight:400">· tutoring</span></div>
         <div class="big money" id="mathsIncome">--</div>
         <div class="foot" id="mathsFoot"></div>
-        <div id="lessonsWrap" style="margin-top:12px"></div>
-      </div>
+        </summary>
+        <div class="income-detail" id="lessonsWrap"></div>
+      </details>
     </div>
 
     <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
@@ -265,6 +288,7 @@
 
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
   function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+dd; } // local date, not UTC, so weeks don't shift during BST
   function dateObj(s){ if(typeof s==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(s)){ var p=s.split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); } return new Date(s); }
   function todayISO(){ return iso(new Date()); }
@@ -276,14 +300,40 @@
 
   // ---------- sample data (fictional, never real) ----------
   function sampleData(){
-    var wk=[],types=["Krav Maga","Run","Push day","Spin"];
-    for(var i=0;i<10;i++){ var d=new Date(); d.setDate(d.getDate()-i*2-1); wk.push({date:iso(d),type:types[i%types.length]}); }
-    var dSame=new Date(); dSame.setDate(dSame.getDate()-1); wk.push({date:iso(dSame),type:"Pull day"});
-    var wt=[]; for(var k=13;k>=0;k--){ var d2=new Date(); d2.setDate(d2.getDate()-k); wt.push({date:iso(d2),kg:Math.round((90.6-k*0.03)*10)/10}); }
-    var ls=[]; for(var a=0;a<3;a++){ var d3=new Date(); d3.setDate(d3.getDate()-a*6-2); ls.push({date:iso(d3),status:"done",student:"Sample student"}); }
-    for(var b=0;b<2;b++){ var d4=new Date(); d4.setDate(d4.getDate()+b*5+3); ls.push({date:iso(d4),status:"upcoming",student:"Sample student"}); }
+    var wk=[],wt=[],ls=[],today=new Date(),students=[["Amelia R",38],["Noah P",35],["Ivy M",42],["Oscar T",35],["Maya S",40]];
+    var weekPlans=[
+      ["Push day","Krav Maga","Pull day"],
+      ["Run","Leg day","Boxing"],
+      ["Push day","Pull day","Krav Maga","Mobility"],
+      ["Run","Push day","Pull day"],
+      ["Leg day","Krav Maga","Boxing"],
+      ["Push day","Run","Pull day","Mobility"],
+      ["Krav Maga","Leg day","Pull day"],
+      ["Run","Push day","Boxing"],
+      ["Pull day","Krav Maga","Leg day","Mobility"],
+      ["Push day","Run","Pull day"],
+      ["Krav Maga","Boxing","Leg day"],
+      ["Run","Push day","Pull day","Krav Maga"],
+      ["Mobility","Leg day","Boxing"]
+    ];
+    weekPlans.forEach(function(plan,w){
+      var start=weekStart(today); start.setDate(start.getDate()-(12-w)*7);
+      plan.forEach(function(type,i){
+        var d=new Date(start),day=[0,2,4,5][i%4]; d.setDate(start.getDate()+day);
+        wk.push({date:iso(d),type:type});
+      });
+    });
+    var dSame=new Date(today); dSame.setDate(dSame.getDate()-1); wk.push({date:iso(dSame),type:"Pull day"});
+    for(var k=89;k>=0;k--){
+      var d2=new Date(today); d2.setDate(d2.getDate()-k);
+      var trend=90.9-(89-k)*0.008, wave=Math.sin(k/5)*0.18, kg=Math.round((trend+wave)*10)/10;
+      wt.push({date:iso(d2),kg:kg});
+    }
+    for(var a=0;a<26;a++){ var d3=new Date(today); d3.setDate(d3.getDate()-a*3-1); ls.push({date:iso(d3),status:"done",student:students[a%students.length][0],amount:students[a%students.length][1]}); }
+    for(var b=0;b<10;b++){ var d4=new Date(today); d4.setDate(d4.getDate()+b*3+2); ls.push({date:iso(d4),status:"upcoming",student:students[(b+1)%students.length][0],amount:students[(b+1)%students.length][1]}); }
+    var future=function(days){ var d=new Date(today); d.setDate(d.getDate()+days); return iso(d); };
     return {
-      money:{magic_last_month:3200,magic_last_month_label:"a sample month",gigs_last_month:3,ytd_current:14500,ytd_prev1:11200,ytd_prev2:8600,avg_hr:280,tutoring_monthly:3500,survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4},
+      money:{magic_last_month:4200,magic_last_month_label:"last sample month",gigs_last_month:5,ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,magic_upcoming:[{date:future(6),event:"Wedding drinks reception",amount:650},{date:future(13),event:"Corporate mixer",amount:850},{date:future(24),event:"Private birthday party",amount:450},{date:future(37),event:"Awards night hosting",amount:1200}]},
       workouts:wk, weights:wt, lessons:ls
     };
   }
@@ -359,7 +409,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.5.2";
+    document.getElementById("versionLabel").textContent="v1.5.3";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -399,6 +449,10 @@
     document.getElementById("magicFoot").textContent=(m.gigs_last_month||0)+" gig"+((m.gigs_last_month||0)===1?"":"s")+" · avg "+gbp(avgGig)+"/gig";
     document.getElementById("mathsIncome").textContent=gbp(m.tutoring_monthly||0);
     document.getElementById("mathsFoot").textContent=lessDone+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
+    var magicUpcoming=Array.isArray(m.magic_upcoming)?m.magic_upcoming:[];
+    document.getElementById("magicDetail").innerHTML=magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,4).map(function(g){
+      return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+gbp(g.amount||0)+'</span></div>';
+    }).join("")+'</div>':'<div class="small faint">No upcoming magic bookings table is connected yet.</div>';
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
       var p=k.pill?'<span class="pill '+k.pill.c+'">'+k.pill.t+'</span>':'';
       return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+k.big+'</div><div class="foot">'+k.foot+'</div></div>';
@@ -457,10 +511,6 @@
       var pts=sw.map(function(x,i){return [xAt(i),x.kg!=null?yAt(x.kg):null,x];});
       var polyPts=pts.filter(function(p){return p[1]!=null;}).map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
       var yBase=yAt(baseLine), yLimit=yAt(limit), yTop=Math.min(yBase,yLimit), bandH=Math.abs(yLimit-yBase);
-      // colour points by week (Sunday start), cycling a small palette
-      var WEEK_COLS=["#C9A24B","#6CA0DC","#7FBF7F","#C77FBF","#D08B5B"];
-      var weekIdx={},nextCol=0;
-      pts.forEach(function(p){ var wk=weekKey(new Date(p[2].date)); if(!(wk in weekIdx)){ weekIdx[wk]=nextCol++%WEEK_COLS.length; } });
       // vertical divider at each week boundary
       var dividers="";
       for(var di=1;di<pts.length;di++){
@@ -477,8 +527,8 @@
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
         '<g>'+pts.map(function(p,idx){
           if(p[1]===null) return '';
-          var wcol=WEEK_COLS[weekIdx[weekKey(new Date(p[2].date))]];
           var bad=p[2].kg>limit;
+          var statusCol=bad?"var(--behind)":"var(--ok)";
           var lx=Math.min(Math.max(p[0],left+50),left+w-50); // clamp so the tooltip box never clips at the edges
           var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
           var labelText=fmtD(p[2].date)+': '+p[2].kg+'kg';
@@ -486,10 +536,10 @@
           var boxX=lx-boxW/2, boxY=ly-boxH+4;
           return '<g class="point-group" style="cursor:pointer">'+
             '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="transparent"></circle>'+ // bigger hover target
-            '<circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4" style="stroke:'+wcol+(bad?'':';fill:var(--panel)')+'"></circle>'+
+            '<circle class="point '+(bad?'bad':'good')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>'+
             '<g class="point-tip" style="opacity:0;pointer-events:none;transition:.1s">'+
               '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
-              '<text x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+wcol+';font-weight:600">'+labelText+'</text>'+
+              '<text x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
             '</g></g>';
         }).join("")+'</g>'+
         '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
@@ -523,7 +573,7 @@
     // lessons
     var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+lessDone+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+lessUp+'</span> <span class="small muted">upcoming</span></div></div>';
     var rows=S.lessons.slice().sort(function(a,b){return a.date<b.date?1:-1;}).slice(0,6);
-    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<table class="lessons">'+rows.map(function(l){return '<tr><td class="mono">'+shortDate(l.date)+'</td><td>'+(l.student||"Lesson")+'</td><td style="text-align:right"><span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span></td></tr>';}).join("")+'</table>' : '<div class="small faint">No lessons in the database.</div>');
+    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<div class="mini-list">'+rows.map(function(l){return '<div class="mini-row"><span class="mono">'+shortDate(l.date)+'</span><strong>'+esc(l.student||"Lesson")+'</strong><span class="amount">'+(l.amount!=null?gbp(l.amount):'<span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span>')+'</span></div>';}).join("")+'</div>' : '<div class="small faint">No lessons in the database.</div>');
   }
 
   function showEmptyState(){
@@ -537,7 +587,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.5.2";
+    document.getElementById("versionLabel").textContent="v1.5.3";
   }
 
   // ---------- modes ----------
