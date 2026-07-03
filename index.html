@@ -249,8 +249,10 @@
   function iso(d){ return d.toISOString().slice(0,10); }
   function todayISO(){ return iso(new Date()); }
   function shortDate(s){ return new Date(s+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}); }
-  function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; }
+  function weekStart(d){ var x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; } // Sunday start
   function weekKey(d){ var w=weekStart(d); return iso(w); }
+  var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fmtD(isoStr){ var p=String(isoStr).split("-"); return parseInt(p[2],10)+" "+MONTHS[parseInt(p[1],10)-1]; }
 
   // ---------- sample data (fictional, never real) ----------
   function sampleData(){
@@ -333,7 +335,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.3.0";
+    document.getElementById("versionLabel").textContent="v1.4.0";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -373,10 +375,10 @@
       return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+k.big+'</div><div class="foot">'+k.foot+'</div></div>';
     }).join("");
 
-    // week dots
+    // week dots (Sunday start)
     var byDay={};
-    S.workouts.forEach(function(w){ if(weekKey(new Date(w.date))===weekKey(new Date())){ var dd=(new Date(w.date).getDay()+6)%7; (byDay[dd]=byDay[dd]||[]).push(w.type); }});
-    var DAYS=["M","T","W","T","F","S","S"],html="";
+    S.workouts.forEach(function(w){ if(weekKey(new Date(w.date))===weekKey(new Date())){ var dd=new Date(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push(w.type); }});
+    var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
       var on=byDay[i], label=on?(on.length>1?on.length+" workouts":on[0]):"Rest";
       html+='<div class="wd'+(on?" on":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="type">'+label+'</span></div>';
@@ -384,18 +386,16 @@
     document.getElementById("weekDots").innerHTML=html;
     document.getElementById("weekSummary").innerHTML=c+" done · "+(c>=good?'<span style="color:var(--ok)">at target</span>':(good-c)+" to hit "+good);
 
-    // 8 week bars: current incomplete week + 7 past weeks
+    // 8 week bars: 7 past weeks then current incomplete week, oldest left to newest right
     var now=new Date(),weeks=[];
-    var todayWk=weekKey(now);
-    weeks.push(todayWk); // current week first
-    for(var w2=1;w2<=7;w2++){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
+    for(var w2=7;w2>=1;w2--){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
+    weeks.push(weekKey(now)); // current week last, sits under the shaded column
     var counts=weeks.map(function(wk){ return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; });
     var mx=Math.max(4,Math.max.apply(null,counts));
     document.getElementById("weekBars").innerHTML=counts.map(function(cc,idx){
-      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===0?"now":(idx%2===1?(idx)+"w":"");
-      var wk=weeks[idx],d1=new Date(wk),d2=new Date(wk);d2.setDate(d2.getDate()+6);
-      var fmt=function(d){var m=d.getMonth()+1,dd=d.getDate();return dd+"/"+(m<10?"0":"")+m;};
-      var range=fmt(d1)+" to "+fmt(d2);
+      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
+      var wk=weeks[idx],d2=new Date(wk);d2.setDate(d2.getDate()+6);
+      var range=fmtD(wk)+" to "+fmtD(iso(d2));
       var tooltip=cc+' workout'+(cc!==1?'s':'')+' ('+range+')';
       return '<div class="bar" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+tooltip+'"><div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
     }).join("");
@@ -422,16 +422,39 @@
       var pts=sw.map(function(x,i){return [xAt(i),x.kg!=null?yAt(x.kg):null,x];});
       var polyPts=pts.filter(function(p){return p[1]!=null;}).map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
       var yBase=yAt(baseLine), yLimit=yAt(limit), yTop=Math.min(yBase,yLimit), bandH=Math.abs(yLimit-yBase);
+      // colour points by week (Sunday start), cycling a small palette
+      var WEEK_COLS=["#C9A24B","#6CA0DC","#7FBF7F","#C77FBF","#D08B5B"];
+      var weekIdx={},nextCol=0;
+      pts.forEach(function(p){ var wk=weekKey(new Date(p[2].date)); if(!(wk in weekIdx)){ weekIdx[wk]=nextCol++%WEEK_COLS.length; } });
+      // vertical divider at each week boundary
+      var dividers="";
+      for(var di=1;di<pts.length;di++){
+        if(weekKey(new Date(pts[di][2].date))!==weekKey(new Date(pts[di-1][2].date))){
+          var dx=((pts[di][0]+pts[di-1][0])/2).toFixed(1);
+          dividers+='<line x1="'+dx+'" x2="'+dx+'" y1="'+top+'" y2="'+(top+h)+'" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,3"></line>';
+        }
+      }
       chart.innerHTML=
         '<rect class="band" x="'+left+'" y="'+yTop.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
+        dividers+
         '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
-        '<g>'+pts.map(function(p,idx){ if(p[1]===null) return ''; var bad=p[2].kg>limit; return '<g class="point-group" style="cursor:pointer"><circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle><text class="point-label" x="'+p[0].toFixed(1)+'" y="'+(p[1]-12).toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:var(--gold);font-weight:600;pointer-events:none;transition:.1s">'+p[2].date+': '+p[2].kg+'kg</text></g>'; }).join("")+'</g>'+
+        '<g>'+pts.map(function(p,idx){
+          if(p[1]===null) return '';
+          var wcol=WEEK_COLS[weekIdx[weekKey(new Date(p[2].date))]];
+          var bad=p[2].kg>limit;
+          var lx=Math.min(Math.max(p[0],left+28),left+w-28); // clamp label so it never clips at edges
+          var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
+          return '<g class="point-group" style="cursor:pointer">'+
+            '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="transparent"></circle>'+ // bigger hover target
+            '<circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4" style="stroke:'+wcol+(bad?'':';fill:var(--panel)')+'"></circle>'+
+            '<text class="point-label" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:'+wcol+';font-weight:600;pointer-events:none;transition:.1s">'+fmtD(p[2].date)+': '+p[2].kg+'kg</text></g>';
+        }).join("")+'</g>'+
         '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
-        '<text x="'+left+'" y="114">'+sw[0].date.slice(5)+'</text>'+
-        '<text x="'+(left+w-32)+'" y="114">'+sw[sw.length-1].date.slice(5)+'</text>';
+        '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
+        '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>';
       // Add hover listeners to point groups
       var pointGroups = chart.querySelectorAll(".point-group");
       pointGroups.forEach(function(g) {
@@ -473,7 +496,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.3.0";
+    document.getElementById("versionLabel").textContent="v1.4.0";
   }
 
   // ---------- modes ----------
