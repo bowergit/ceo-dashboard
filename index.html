@@ -1,82 +1,554 @@
-// Daniel's CEO Dashboard - Calendar Sync Script
-// Pulls Exercise calendar events from the past month, writes each as a row to the Sync sheet
-// Run on a schedule: Apps Script > Triggers > New trigger > Time-driven > Daily > 00:00
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow,noarchive" />
+<title>Daniel OS · CEO Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    --ink:#0E1117; --panel:#161B22; --panel-2:#1C232D; --line:#26303B;
+    --text:#E7ECF2; --muted:#8B97A6; --faint:#5C6774;
+    --gold:#C9A24B; --gold-dim:#8f7233;
+    --ok:#3FB950; --watch:#D29922; --behind:#F85149; --r:12px;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.5;padding:20px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin:0}
+  .eyebrow{font-family:'Space Grotesk';font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .brand h1{font-size:19px;letter-spacing:.02em}
+  .brand .sub{color:var(--muted);font-size:13px;margin-top:3px}
+  .toprt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{font-family:'Inter',sans-serif;cursor:pointer}
+  .btn{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:500;transition:.15s}
+  .btn:hover{border-color:var(--gold-dim);background:var(--panel)}
+  .btn.gold{border-color:var(--gold-dim);color:var(--gold)} .btn.gold:hover{background:#1e1a10}
+  .btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:7px 12px;font-size:12px;font-weight:600}
+  .seg button.on{background:var(--gold);color:#1a1408}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .synced{font-size:11px;color:var(--faint)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+  .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.03em}
+  .badge.sample{color:var(--gold);background:rgba(201,162,75,.12)}
+  .banner{margin-bottom:14px}
+  .hero{background:#12161d;border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:16px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;top:-40%;right:-6%;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,75,.14),transparent 68%)}
+  .hero .row{display:flex;gap:26px;align-items:center;flex-wrap:wrap;position:relative;z-index:1}
+  .gauge{width:150px;height:150px;flex:none;position:relative}
+  .gauge .score{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge .score .n{font-family:'Space Grotesk';font-size:42px;font-weight:700;line-height:1}
+  .gauge .score .d{font-size:12px;color:var(--muted);margin-top:2px}
+  .verdict{flex:1;min-width:260px}
+  .track-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+  .verdict .lead{font-family:'Space Grotesk';font-size:23px;font-weight:600;line-height:1.2;letter-spacing:-.01em}
+  .verdict .why{color:var(--muted);font-size:14px;margin-top:8px;max-width:54ch}
+  .subscores{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .sub{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:112px}
+  .sub .lab{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .sub .val{font-family:'IBM Plex Mono';font-size:19px;font-weight:600;margin-top:2px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(4,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:860px){.g4{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+  @media(max-width:520px){.g4{grid-template-columns:1fr}}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;cursor:default}
+  .kpi .lab{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+  .kpi .big{font-family:'Space Grotesk';font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.01em}
+  .kpi .big.money{font-family:'IBM Plex Mono';font-size:26px;font-weight:600}
+  .kpi .foot{font-size:12px;color:var(--faint);margin-top:6px}
+  .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
+  .pill.ok{color:var(--ok);background:rgba(63,185,80,.12)} .pill.watch{color:var(--watch);background:rgba(210,153,34,.12)} .pill.behind{color:var(--behind);background:rgba(248,81,73,.12)}
+  .attention{margin-bottom:16px}
+  .attention-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .attention-head h2{font-size:15px}
+  .attention-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .attention-item{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--gold-dim);border-radius:8px;padding:11px 12px;min-height:82px}
+  .attention-item.ok{border-left-color:var(--ok)} .attention-item.watch{border-left-color:var(--watch)} .attention-item.behind{border-left-color:var(--behind)}
+  .attention-item .kind{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+  .attention-item.ok .kind{color:var(--ok)} .attention-item.watch .kind{color:var(--watch)} .attention-item.behind .kind{color:var(--behind)}
+  .attention-item .msg{font-size:13px;color:var(--text);line-height:1.35}
+  @media(max-width:860px){.attention-list{grid-template-columns:1fr}}
+  .sect-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 12px}
+  .sect-title h2{font-size:15px;letter-spacing:.01em}
+  .weekdots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin:8px 0 2px}
+  .wd{min-width:0;height:44px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint)}
+  .wd .day{font-size:10px;font-weight:700;line-height:1}
+  .wd .type{font-size:9px;color:var(--muted);line-height:1;margin-top:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+  .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
+  .wd.on .type{color:var(--text);font-weight:700}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
+  .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
+  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:.1s;z-index:1}
+  .bar:hover{opacity:0.8}
+  .bar span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--faint)}
+  .bar-tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:11px;color:var(--text);white-space:nowrap;margin-bottom:8px;opacity:0;pointer-events:none;transition:.1s;z-index:10}
+  .bar:hover .bar-tooltip{opacity:1}
+  .weight-now{font-family:'IBM Plex Mono';font-size:30px;font-weight:600}
+  .weight-chart{width:100%;height:118px;margin-top:10px;display:block;overflow:visible}
+  .weight-chart .band{fill:rgba(63,185,80,.08)}
+  .weight-chart .baseline{stroke:var(--ok);stroke-width:1;stroke-dasharray:4 4;opacity:.75}
+  .weight-chart .limit{stroke:var(--behind);stroke-width:1;stroke-dasharray:3 4;opacity:.75}
+  .weight-chart .line{fill:none;stroke:var(--gold);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .weight-chart .point{fill:var(--panel);stroke:var(--gold);stroke-width:2;cursor:pointer;transition:.1s}
+  .weight-chart .point:hover{r:5;filter:drop-shadow(0 0 4px rgba(201,162,75,.5))}
+  .weight-chart .point.bad{stroke:var(--behind);fill:var(--behind)}
+  .weight-chart .point.bad:hover{filter:drop-shadow(0 0 4px rgba(248,81,73,.5))}
+  .weight-chart text{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--faint)}
+  table.lessons{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  table.lessons td{padding:6px 4px;border-bottom:1px solid var(--line);color:var(--muted)}
+  .tag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600}
+  .tag.done{color:var(--ok);background:rgba(63,185,80,.12)} .tag.up{color:var(--gold);background:rgba(201,162,75,.12)}
+  .muted{color:var(--muted)} .faint{color:var(--faint)} .small{font-size:12px}
+  .yoy-list{display:grid;gap:10px;margin-top:10px}
+  .yoy-row{display:grid;grid-template-columns:74px minmax(0,1fr) 92px;gap:10px;align-items:center}
+  .yoy-label{font-size:12px;color:var(--muted)}
+  .yoy-value{font-family:'IBM Plex Mono';font-size:14px;color:var(--text)}
+  .yoy-delta{text-align:right;font-size:12px;color:var(--faint)}
+  .yoy-delta.ok{color:var(--ok)} .yoy-delta.behind{color:var(--behind)}
+  .yoy-track{height:7px;background:var(--panel-2);border-radius:20px;overflow:hidden}
+  .yoy-fill{height:100%;background:var(--gold-dim);border-radius:20px}
+  .yoy-row.now .yoy-fill{background:var(--gold)}
+  .yoy-note{font-size:12px;color:var(--faint);margin-top:12px}
+  input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
+  input:focus{outline:2px solid var(--gold);outline-offset:1px}
+  .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
+  .foot-note{color:var(--faint);font-size:11.5px;margin-top:26px;text-align:center;line-height:1.6}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="eyebrow">Daniel OS</div>
+      <h1>CEO Dashboard</h1>
+      <div class="sub">Am I on track to quit the job and go all in?</div>
+    </div>
+    <div class="toprt">
+      <span class="synced" id="syncedLabel"></span>
+      <div class="seg" id="modeSeg" role="tablist">
+        <button id="mSample" class="on" role="tab">Sample</button>
+        <button id="mLive" role="tab">Live</button>
+      </div>
+      <button class="btn" id="refreshBtn">Refresh</button>
+      <button class="btn" id="logoutBtn" style="display:none">Sign out</button>
+    </div>
+  </header>
 
-function syncCalendarToSheet() {
-  // Config
-  var CALENDAR_ID = "e29a920cea47dd69a4b033d18485ecaa82ade6d76f321b439a60e6325b5d7dc7@group.calendar.google.com";
-  var SHEET_ID = "1b-Smzvo1066R2mH4uIZ7nPlNIYscqlU8EarSAhXo2Xw";
-  var SHEET_NAME = "Sync";
-  
-  // Open the sheet and get or create the Sync tab
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-  }
-  
-  // Set up headers if empty
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["date", "event_name"]);
-  }
-  
-  // Fetch calendar events from the past month
-  var now = new Date();
-  var monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  
-  var calendar = CalendarApp.getCalendarById(CALENDAR_ID);
-  if (!calendar) {
-    Logger.log("Calendar not found. Check CALENDAR_ID.");
-    return;
-  }
-  
-  var events = calendar.getEvents(monthAgo, now);
-  
-  // Clear old data (keep header)
-  if (sheet.getLastRow() > 1) {
-    sheet.deleteRows(2, sheet.getLastRow() - 1);
-  }
-  
-  // Write each event as a row
-  var rows = [];
-  events.forEach(function(event) {
-    if (!event.isAllDayEvent()) {
-      var eventDate = Utilities.formatDate(event.getStartTime(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-      var eventName = event.getTitle();
-      rows.push([eventDate, eventName]);
-    }
-  });
-  
-  // Sort by date descending (most recent first)
-  rows.sort(function(a, b) {
-    return new Date(b[0]) - new Date(a[0]);
-  });
-  
-  // Append all rows at once
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 2).setValues(rows);
-  }
-  
-  Logger.log("Synced " + rows.length + " calendar events to " + SHEET_NAME);
-}
+  <div class="banner" id="banner"></div>
 
-// Run this once to set up the daily trigger
-function setupTrigger() {
-  // Delete any existing triggers for this function
-  var triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(function(trigger) {
-    if (trigger.getHandlerFunction() === "syncCalendarToSheet") {
-      ScriptApp.deleteTrigger(trigger);
+  <div id="app">
+    <section class="hero">
+      <div class="row">
+        <div class="gauge">
+          <svg viewBox="0 0 120 120" width="150" height="150" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#26303B" stroke-width="9"/>
+            <circle id="gaugeArc" cx="60" cy="60" r="52" fill="none" stroke="#C9A24B" stroke-width="9"
+              stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="score"><div class="n mono" id="scoreN">--</div><div class="d">readiness / 10</div></div>
+        </div>
+        <div class="verdict">
+          <div class="track-pill" id="trackPill" style="display:none"></div>
+          <div class="lead" id="verdictLead">Loading...</div>
+          <div class="why" id="verdictWhy"></div>
+          <div class="subscores" id="subscores"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel attention" id="attentionPanel">
+      <div class="attention-head">
+        <h2>Today's attention</h2>
+        <span class="small faint">the few things that matter next</span>
+      </div>
+      <div class="attention-list" id="attentionList"></div>
+    </section>
+
+    <div class="grid g4" id="kpiRow"></div>
+
+    <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
+    <div class="grid g2">
+      <div class="panel">
+        <div class="lab muted small">Workouts this week</div>
+        <div class="weekdots" id="weekDots"></div>
+        <div class="small muted" id="weekSummary" style="margin-top:8px"></div>
+        <div class="bars" id="weekBars"></div>
+        <div class="small faint" style="margin-top:24px">Last 8 weeks.</div>
+      </div>
+      <div class="panel">
+        <div class="lab muted small">Weight <span class="faint" id="weightBaselineLabel">· baseline 90 kg</span></div>
+        <div class="weight-now" id="weightNow">--</div>
+        <div class="small" id="weightDelta" style="margin-top:2px"></div>
+        <svg class="weight-chart" id="weightChart" viewBox="0 0 320 118" role="img" aria-label="Weight trend"></svg>
+      </div>
+    </div>
+
+    <div class="sect-title"><h2>Trajectory</h2><span class="small faint">turnover to date, year on year</span></div>
+    <div class="grid g2">
+      <div class="panel">
+        <div class="lab muted small">Turnover by this point in the year</div>
+        <div class="yoy-list" id="revYoy"></div>
+      </div>
+      <div class="panel">
+        <div class="lab muted small">Maths lessons <span class="faint">· last 30 days and upcoming</span></div>
+        <div id="lessonsWrap"></div>
+      </div>
+    </div>
+    <div class="foot-note" id="footNote"></div>
+    <div style="margin-top:12px;font-size:10px;color:var(--faint);text-align:right" id="versionLabel"></div>
+  </div>
+
+  <div id="login" style="display:none">
+    <div class="panel center">
+      <div>
+        <h2 style="margin-bottom:6px">Sign in to see your real numbers</h2>
+        <p class="small muted" style="max-width:44ch;margin:0 auto 14px">Your data is private. Sign in with the email and password you set in Supabase.</p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <input type="email" id="loginEmail" placeholder="danielbowermagic@gmail.com" autocomplete="username"/>
+          <input type="password" id="loginPass" placeholder="password" autocomplete="current-password"/>
+          <button class="btn gold" id="loginBtn">Sign in</button>
+        </div>
+        <div class="small" id="loginMsg" style="margin-top:12px;color:var(--muted)"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notConfigured" style="display:none">
+    <div class="panel center">
+      <div>
+        <h2 style="margin-bottom:6px">Live mode not connected yet</h2>
+        <p class="small muted" style="max-width:52ch;margin:0 auto">Add your Supabase URL and anon key near the top of this file (the CONFIG block), then reload. Until then, Sample mode shows the full layout with fictional numbers.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     CONFIG — fill these two in after you create your Supabase
+     project (Project settings > API). Both are safe to be public:
+     the anon key only works together with the row level security
+     rules in schema.sql, so no data is exposed without your login.
+     ============================================================ */
+  var SUPABASE_URL      = "https://uilytgubukiinyrqrltj.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_WK5p8tUAsNLEqnmxVT7Eag_2EVNbi7V";
+  /* ============================================================ */
+
+  var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
+  function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
+  function iso(d){ return d.toISOString().slice(0,10); }
+  function todayISO(){ return iso(new Date()); }
+  function shortDate(s){ return new Date(s+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}); }
+  function weekStart(d){ var x=new Date(d); var day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; }
+  function weekKey(d){ var w=weekStart(d); return iso(w); }
+
+  // ---------- sample data (fictional, never real) ----------
+  function sampleData(){
+    var wk=[],types=["Gym","Run","BJJ","Spin"];
+    for(var i=0;i<10;i++){ var d=new Date(); d.setDate(d.getDate()-i*2-1); wk.push({date:iso(d),type:types[i%types.length]}); }
+    var wt=[]; for(var k=13;k>=0;k--){ var d2=new Date(); d2.setDate(d2.getDate()-k); wt.push({date:iso(d2),kg:Math.round((90.6-k*0.03)*10)/10}); }
+    var ls=[]; for(var a=0;a<3;a++){ var d3=new Date(); d3.setDate(d3.getDate()-a*6-2); ls.push({date:iso(d3),status:"done",student:"Sample student"}); }
+    for(var b=0;b<2;b++){ var d4=new Date(); d4.setDate(d4.getDate()+b*5+3); ls.push({date:iso(d4),status:"upcoming",student:"Sample student"}); }
+    return {
+      money:{magic_last_month:3200,magic_last_month_label:"a sample month",gigs_last_month:3,ytd_current:14500,ytd_prev1:11200,ytd_prev2:8600,avg_hr:280,tutoring_monthly:3500,survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4},
+      workouts:wk, weights:wt, lessons:ls
+    };
+  }
+  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0};
+
+  var S={money:{},workouts:[],weights:[],lessons:[],hasData:false};
+
+  // ---------- scoring ----------
+  function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; }
+  function latestWeight(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0].kg; }
+  function scores(){
+    var m=S.money;
+    var income=(m.magic_last_month||0)+(m.tutoring_monthly||0);
+    var full=m.full_lifestyle_gross||7778, surv=m.survival_gross||5764;
+    var money=clamp(Math.round(income/full*8.5),0,10);
+    if(income<surv) money=clamp(Math.round(income/surv*6),0,10);
+    var growth=m.ytd_prev1? (m.ytd_current/m.ytd_prev1-1):0;
+    var momentum=clamp(Math.round(6+growth*7),0,10);
+    var haveHealth=S.workouts.length>0||S.weights.length>0, discipline=null;
+    if(haveHealth){
+      var c=workoutsThisWeek(), good=m.workouts_good||3, great=m.workouts_great||4;
+      var wS=c>=great?10:c>=good?8:c===2?6:c===1?3:0;
+      var lw=latestWeight(), base=m.weight_baseline||90, wtS=6;
+      if(lw!=null){ var over=lw-base; wtS=over<=1?10:over<=2?7:over<=4?5:3; }
+      discipline=Math.round(0.6*wS+0.4*wtS);
     }
+    var overall= discipline==null? Math.round((money*0.55+momentum*0.45)*10)/10 : Math.round((money*0.4+momentum*0.35+discipline*0.25)*10)/10;
+    return {money:money,momentum:momentum,discipline:discipline,overall:overall,income:income,growth:growth};
+  }
+  function verdict(sc){
+    var o=sc.overall, lead;
+    if(sc.discipline==null){
+      if(o>=7) lead="The business looks ready. Prove the training, then pick a date.";
+      else if(o>=5) lead="Money and momentum are building. Keep pushing.";
+      else lead="Early days. Grow the top line first.";
+    } else if(o>=8) lead="You are there. Pick a date and give notice.";
+    else if(o>=6.5) lead="Nearly. Hold this line for a month or two, then go.";
+    else if(o>=5) lead="Not yet. The engine is warming up.";
+    else lead="Keep building. The numbers are not there yet.";
+    var p=[];
+    p.push("Last month you earned "+gbp(sc.income)+" across magic and tutoring, against a full lifestyle line of "+gbp(S.money.full_lifestyle_gross||7778)+".");
+    if(sc.growth>0.1) p.push("Turnover is up "+Math.round(sc.growth*100)+"% on this point last year.");
+    if(sc.discipline==null) p.push("Log workouts and weight in the database so the discipline score reads true.");
+    else{
+      var pr=[["income against your lifestyle number",sc.money],["booked pipeline and growth",sc.momentum],["training consistency and weight",sc.discipline]];
+      pr.sort(function(a,b){return a[1]-b[1];});
+      p.push("Weakest lever right now: "+pr[0][0]+".");
+    }
+    return {lead:lead,why:p.join(" ")};
+  }
+  function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
+  function attentionItems(sc,c,good,lw,lessUp){
+    var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
+    if(c<good) items.push({kind:c===good-1?"watch":"behind",label:c===good-1?"Watch":"Action",msg:"Log or book "+(good-c)+" more workout"+(good-c===1?"":"s")+" to hit this week's target."});
+    else items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
+    if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
+    else{
+      var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
+      if(diff>1) items.push({kind:diff>2?"behind":"watch",label:diff>2?"Action":"Watch",msg:"Weight is "+(diff>0?"+":"")+diff+" kg above baseline. The unhappy line is +1 kg."});
+      else items.push({kind:"ok",label:"Good",msg:"Weight is within the baseline band. Under baseline is fine."});
+    }
+    if(income<survival) items.push({kind:"behind",label:"Action",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
+    else if(income<full) items.push({kind:"watch",label:"Watch",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
+    else items.push({kind:"ok",label:"Good",msg:"Monthly income is past the full lifestyle line."});
+    if(sc.growth<0) items.push({kind:"behind",label:"Action",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
+    else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",msg:"Year-on-year growth is positive but not decisive yet."});
+    if(lessUp===0) items.push({kind:"watch",label:"Watch",msg:"No upcoming lessons are logged for the next 30 days."});
+    return items.slice(0,4);
+  }
+
+  // ---------- render ----------
+  function render(){
+    document.getElementById("versionLabel").textContent="v1.2";
+    var sc=scores(), vd=verdict(sc), m=S.money;
+    document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
+    var arc=document.getElementById("gaugeArc"),full=327;
+    arc.style.strokeDashoffset=String(Math.round(full-full*(sc.overall/10)));
+    arc.setAttribute("stroke",statusColor(sc.overall));
+
+    var tp=document.getElementById("trackPill");
+    var st = sc.overall>=7? ["ON TRACK","var(--ok)","rgba(63,185,80,.14)"] : sc.overall>=5? ["ON THE WAY","var(--watch)","rgba(210,153,34,.14)"] : ["BEHIND","var(--behind)","rgba(248,81,73,.14)"];
+    tp.textContent=st[0]; tp.style.color=st[1]; tp.style.background=st[2]; tp.style.display="inline-flex";
+
+    document.getElementById("verdictLead").textContent=vd.lead;
+    document.getElementById("verdictWhy").textContent=vd.why;
+    var subs=[["Money",sc.money],["Momentum",sc.momentum],["Discipline",sc.discipline==null?"–":sc.discipline]];
+    document.getElementById("subscores").innerHTML=subs.map(function(s){
+      var v=s[1],col=(v==="–")?"var(--faint)":statusColor(v);
+      return '<div class="sub"><div class="lab"><span class="dot" style="background:'+col+'"></span>'+s[0]+'</div><div class="val">'+(v==="–"?"–":v)+'<span class="faint" style="font-size:12px">/10</span></div></div>';
+    }).join("");
+
+    var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
+    var wkClass=c>=good?"ok":c===2?"watch":"behind", wkLabel=c>=great?"great":c===3?"good":c===2?"fine":c===1?"low":"none";
+    function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
+    var lessDone=S.lessons.filter(function(l){return l.status==="done"&&within(l.date,-30);}).length;
+    var lessUp=S.lessons.filter(function(l){return l.status==="upcoming"&&within(l.date,30,true);}).length;
+    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,lw,lessUp).map(function(item){
+      return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
+    }).join("");
+
+    var avgGig=(m.avg_gig!=null?m.avg_gig:((m.gigs_last_month||0)>0?(m.magic_last_month||0)/(m.gigs_last_month||1):(m.avg_hr||0)));
+    var kpis=[
+      {lab:"Turnover last month",big:gbp(m.magic_last_month||0),money:true,foot:(m.magic_last_month_label||"last month")+" · magic"},
+      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+gbp(avgGig)+"/gig"},
+      {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+gbp(m.ytd_prev1||0)+" this point last year"},
+      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?lw+" kg":"not logged")}
+    ];
+    document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
+      var p=k.pill?'<span class="pill '+k.pill.c+'">'+k.pill.t+'</span>':'';
+      return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+k.big+'</div><div class="foot">'+k.foot+'</div></div>';
+    }).join("");
+
+    // week dots
+    var byDay={};
+    S.workouts.forEach(function(w){ if(weekKey(new Date(w.date))===weekKey(new Date())){ var dd=(new Date(w.date).getDay()+6)%7; (byDay[dd]=byDay[dd]||[]).push(w.type); }});
+    var DAYS=["M","T","W","T","F","S","S"],html="";
+    for(var i=0;i<7;i++){
+      var on=byDay[i], label=on?(on.length>1?on.length+" workouts":on[0]):"Rest";
+      html+='<div class="wd'+(on?" on":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="type">'+label+'</span></div>';
+    }
+    document.getElementById("weekDots").innerHTML=html;
+    document.getElementById("weekSummary").innerHTML=c+" done · "+(c>=good?'<span style="color:var(--ok)">at target</span>':(good-c)+" to hit "+good);
+
+    // 8 week bars
+    var now=new Date(),weeks=[];
+    for(var w2=7;w2>=0;w2--){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
+    var counts=weeks.map(function(wk){ return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; });
+    var mx=Math.max(4,Math.max.apply(null,counts));
+    document.getElementById("weekBars").innerHTML=counts.map(function(cc,idx){
+      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(8-idx)+"w":"");
+      var wk=weeks[idx],d1=new Date(wk),d2=new Date(wk);d2.setDate(d2.getDate()+6);
+      var fmt=function(d){var m=d.getMonth()+1,dd=d.getDate();return dd+"/"+(m<10?"0":"")+m;};
+      var range=fmt(d1)+" to "+fmt(d2);
+      var tooltip=cc+' workout'+(cc!==1?'s':'')+' ('+range+')';
+      return '<div class="bar" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+tooltip+'"><div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
+    }).join("");
+
+    // weight
+    document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
+    document.getElementById("weightNow").textContent=lw!=null?lw+" kg":"--";
+    var dEl=document.getElementById("weightDelta");
+    if(lw!=null){ var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=1?"var(--ok)":diff<=2?"var(--watch)":"var(--behind)"; dEl.innerHTML='<span style="color:'+col+'">'+(diff>0?"+":"")+diff+' kg vs baseline</span>'; }
+    else dEl.innerHTML='<span class="faint">no weight logged</span>';
+    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-30),chart=document.getElementById("weightChart");
+    if(sw.length){
+      var vals=sw.map(function(x){return x.kg;}),baseLine=m.weight_baseline||90,limit=baseLine+1;
+      vals.push(baseLine); vals.push(limit);
+      var mn=Math.min.apply(null,vals)-0.5,mxx=Math.max.apply(null,vals)+0.5,rng=Math.max(1,mxx-mn);
+      var left=24,right=10,top=10,bottom=22,w=320-left-right,h=118-top-bottom;
+      function xAt(i){ return sw.length===1? left+w/2 : left+(i/(sw.length-1))*w; }
+      function yAt(v){ return top+(mxx-v)/rng*h; }
+      var pts=sw.map(function(x,i){return [xAt(i),yAt(x.kg),x];});
+      var poly=pts.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
+      var yBase=yAt(baseLine), yLimit=yAt(limit), yTop=Math.min(yBase,yLimit), bandH=Math.abs(yLimit-yBase);
+      chart.innerHTML=
+        '<rect class="band" x="'+left+'" y="'+yTop.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
+        '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
+        '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
+        '<polyline class="line" points="'+poly+'"></polyline>'+
+        pts.map(function(p){ var bad=p[2].kg>limit; return '<circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"><title>'+p[2].date+': '+p[2].kg+' kg</title></circle>'; }).join("")+
+        '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
+        '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
+        '<text x="'+left+'" y="114">'+sw[0].date.slice(5)+'</text>'+
+        '<text x="'+(left+w-32)+'" y="114">'+sw[sw.length-1].date.slice(5)+'</text>';
+    }
+    else chart.innerHTML="";
+
+    // revenue yoy
+    var data=[["this year",m.ytd_current||0,true],["last year",m.ytd_prev1||0,false],["2 yrs ago",m.ytd_prev2||0,false]];
+    var current=m.ytd_current||0,rmax=Math.max.apply(null,data.map(function(d){return d[1];}))||1;
+    document.getElementById("revYoy").innerHTML=data.map(function(d){
+      var pct=Math.round(d[1]/rmax*100),delta=current-d[1],deltaText=d[2]?"baseline":(delta>=0?gbp(delta)+" ahead":gbp(Math.abs(delta))+" behind");
+      var deltaClass=d[2]?"":(delta>=0?"ok":"behind");
+      return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+gbp(d[1])+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+deltaText+'</div></div>';
+    }).join("")+'<div class="yoy-note">Rows compare cumulative turnover at the same point in each year.</div>';
+
+    // lessons
+    var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+lessDone+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+lessUp+'</span> <span class="small muted">upcoming</span></div></div>';
+    var rows=S.lessons.slice().sort(function(a,b){return a.date<b.date?1:-1;}).slice(0,6);
+    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<table class="lessons">'+rows.map(function(l){return '<tr><td class="mono">'+shortDate(l.date)+'</td><td>'+(l.student||"Lesson")+'</td><td style="text-align:right"><span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span></td></tr>';}).join("")+'</table>' : '<div class="small faint">No lessons in the database.</div>');
+  }
+
+  function showEmptyState(){
+    document.getElementById("scoreN").textContent="--";
+    document.getElementById("trackPill").style.display="none";
+    document.getElementById("verdictLead").textContent="Connected. No data yet.";
+    document.getElementById("verdictWhy").textContent="Your database is live and empty. Add rows to the metrics, workouts, weights and lessons tables and this fills in.";
+    document.getElementById("subscores").innerHTML="";
+    document.getElementById("kpiRow").innerHTML="";
+    ["attentionList","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
+    document.getElementById("weekSummary").textContent="";
+    document.getElementById("weightNow").textContent="--";
+    document.getElementById("weightDelta").innerHTML="";
+    document.getElementById("versionLabel").textContent="v1.2";
+  }
+
+  // ---------- modes ----------
+  var mode="sample", sb=null;
+  function setSynced(t){ document.getElementById("syncedLabel").textContent=t; }
+  function showView(which){
+    document.getElementById("app").style.display = which==="app"?"block":"none";
+    document.getElementById("login").style.display = which==="login"?"block":"none";
+    document.getElementById("notConfigured").style.display = which==="config"?"block":"none";
+  }
+  function setBanner(mode){
+    var b=document.getElementById("banner");
+    if(mode==="sample"){ b.innerHTML='<span class="badge sample">Sample data</span> <span class="small faint" style="margin-left:8px">fictional numbers, safe to show anyone. Switch to Live to read your real data from Supabase.</span>'; }
+    else b.innerHTML="";
+  }
+  function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Showing sample data. " : "Live from Supabase. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
+
+  async function getClient(){
+    if(sb) return sb;
+    if(!SUPABASE_URL||!SUPABASE_ANON_KEY) return null;
+    var mod=await import("https://esm.sh/@supabase/supabase-js@2");
+    sb=mod.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    return sb;
+  }
+
+  async function loadSample(){
+    var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
+    document.getElementById("logoutBtn").style.display="none";
+    setBanner("sample"); setSynced("sample data"); showView("app"); footNote(); render();
+  }
+
+  async function loadLive(){
+    setBanner("live");
+    var client=await getClient();
+    if(!client){ showView("config"); setSynced("not connected"); return; }
+    var sess=(await client.auth.getSession()).data.session;
+    if(!sess){ showView("login"); setSynced("signed out"); document.getElementById("logoutBtn").style.display="none"; return; }
+    document.getElementById("logoutBtn").style.display="inline-block";
+    setSynced("syncing...");
+    try{
+      var r=await Promise.all([
+        client.from("metrics").select("*").order("updated_at",{ascending:false}).limit(1),
+        client.from("workouts").select("*").order("date",{ascending:false}).limit(300),
+        client.from("weights").select("*").order("date",{ascending:false}).limit(300),
+        client.from("lessons").select("*").order("date",{ascending:false}).limit(300)
+      ]);
+      var metrics=(r[0].data&&r[0].data[0])||null;
+      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[];
+      showView("app"); footNote();
+      if(!metrics && S.workouts.length===0 && S.weights.length===0){ showEmptyState(); setSynced("connected · empty"); return; }
+      S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
+      setSynced("synced "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+      render();
+    }catch(e){
+      showView("app");
+      document.getElementById("verdictLead").textContent="Could not read the database.";
+      document.getElementById("verdictWhy").textContent=String(e.message||e)+" Check the schema is applied and your login email matches the policy.";
+      setSynced("error");
+    }
+  }
+
+  function refresh(){ mode==="sample"? loadSample() : loadLive(); }
+  function setMode(next){
+    mode=next;
+    document.getElementById("mSample").classList.toggle("on",next==="sample");
+    document.getElementById("mLive").classList.toggle("on",next==="live");
+    try{ localStorage.setItem("os_ceo_mode",next); }catch(e){}
+    refresh();
+  }
+
+  document.getElementById("mSample").addEventListener("click",function(){setMode("sample");});
+  document.getElementById("mLive").addEventListener("click",function(){setMode("live");});
+  document.getElementById("refreshBtn").addEventListener("click",refresh);
+  document.getElementById("loginBtn").addEventListener("click",async function(){
+    var email=document.getElementById("loginEmail").value.trim();
+    var pass=document.getElementById("loginPass").value;
+    if(!email||!pass){ document.getElementById("loginMsg").textContent="Enter your email and password."; return; }
+    var client=await getClient(); if(!client){ showView("config"); return; }
+    document.getElementById("loginMsg").textContent="Signing in...";
+    var res=await client.auth.signInWithPassword({email:email,password:pass});
+    if(res.error){ document.getElementById("loginMsg").textContent=res.error.message; return; }
+    document.getElementById("loginMsg").textContent="";
+    loadLive();
   });
-  
-  // Create new daily trigger at 00:30 UTC
-  ScriptApp.newTrigger("syncCalendarToSheet")
-    .timeBased()
-    .atHour(0)
-    .nearMinute(30)
-    .everyDays(1)
-    .create();
-  
-  Logger.log("Trigger set up. Will run daily at 00:30.");
-}
+  document.getElementById("loginPass").addEventListener("keydown",function(e){ if(e.key==="Enter") document.getElementById("loginBtn").click(); });
+  document.getElementById("logoutBtn").addEventListener("click",async function(){ var client=await getClient(); if(client){ await client.auth.signOut(); } loadLive(); });
+
+  // init: honour saved mode, and handle a magic-link redirect (which lands in Live)
+  (async function init(){
+    var saved="sample"; try{ saved=localStorage.getItem("os_ceo_mode")||"sample"; }catch(e){}
+    if(location.hash.indexOf("access_token")>-1) saved="live";
+    setMode(saved);
+  })();
+})();
+</script>
+</body>
+</html>
