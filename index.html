@@ -79,15 +79,18 @@
   .sect-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 12px}
   .sect-title h2{font-size:15px;letter-spacing:.01em}
   .weekdots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin:8px 0 2px}
-  .wd{min-width:0;height:44px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint)}
-  .wd .day{font-size:10px;font-weight:700;line-height:1}
-  .wd .type{font-size:9px;color:var(--muted);line-height:1;margin-top:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+  .wd{min-width:0;min-height:58px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;color:var(--faint);padding:7px 4px 6px}
+  .wd .day{font-size:10px;font-weight:700;line-height:1.15}
+  .wd .types{display:flex;flex-direction:column;gap:2px;align-items:center;margin-top:5px;width:100%}
+  .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal}
   .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
   .wd.on .type{color:var(--text);font-weight:700}
+  .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
   .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
   .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:.1s;z-index:1}
   .bar:hover{opacity:0.8}
+  .bar.selected{outline:1px solid var(--gold);outline-offset:2px}
   .bar span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--faint)}
   .bar-tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:11px;color:var(--text);white-space:nowrap;margin-bottom:8px;opacity:0;pointer-events:none;transition:.1s;z-index:10}
   .bar:hover .bar-tooltip{opacity:1}
@@ -196,7 +199,7 @@
     <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
     <div class="grid g2">
       <div class="panel">
-        <div class="lab muted small">Workouts this week</div>
+        <div class="lab muted small" id="workoutWeekTitle">Workouts this week</div>
         <div class="weekdots" id="weekDots"></div>
         <div class="small muted" id="weekSummary" style="margin-top:8px"></div>
         <div class="bars" id="weekBars"></div>
@@ -263,6 +266,7 @@
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
   function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+dd; } // local date, not UTC, so weeks don't shift during BST
+  function dateObj(s){ if(typeof s==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(s)){ var p=s.split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); } return new Date(s); }
   function todayISO(){ return iso(new Date()); }
   function shortDate(s){ return new Date(s+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}); }
   function weekStart(d){ var x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; } // Sunday start
@@ -272,8 +276,9 @@
 
   // ---------- sample data (fictional, never real) ----------
   function sampleData(){
-    var wk=[],types=["Gym","Run","BJJ","Spin"];
+    var wk=[],types=["Krav Maga","Run","Push day","Spin"];
     for(var i=0;i<10;i++){ var d=new Date(); d.setDate(d.getDate()-i*2-1); wk.push({date:iso(d),type:types[i%types.length]}); }
+    var dSame=new Date(); dSame.setDate(dSame.getDate()-1); wk.push({date:iso(dSame),type:"Pull day"});
     var wt=[]; for(var k=13;k>=0;k--){ var d2=new Date(); d2.setDate(d2.getDate()-k); wt.push({date:iso(d2),kg:Math.round((90.6-k*0.03)*10)/10}); }
     var ls=[]; for(var a=0;a<3;a++){ var d3=new Date(); d3.setDate(d3.getDate()-a*6-2); ls.push({date:iso(d3),status:"done",student:"Sample student"}); }
     for(var b=0;b<2;b++){ var d4=new Date(); d4.setDate(d4.getDate()+b*5+3); ls.push({date:iso(d4),status:"upcoming",student:"Sample student"}); }
@@ -285,9 +290,12 @@
   var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0};
 
   var S={money:{},workouts:[],weights:[],lessons:[],hasData:false};
+  var selectedWorkoutWeek=null;
 
   // ---------- scoring ----------
-  function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; }
+  function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}).length; }
+  function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}); }
+  function weekRangeLabel(wk){ var start=dateObj(wk),end=dateObj(wk); end.setDate(end.getDate()+6); return fmtD(wk)+" to "+fmtD(iso(end)); }
   function latestWeight(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0].kg; }
   function scores(){
     var m=S.money;
@@ -397,29 +405,35 @@
     }).join("");
 
     // week dots (Sunday start)
-    var byDay={};
-    S.workouts.forEach(function(w){ if(weekKey(new Date(w.date))===weekKey(new Date())){ var dd=new Date(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push(w.type); }});
+    var currentWeek=weekKey(new Date()),displayWeek=selectedWorkoutWeek||currentWeek,displayWorkouts=workoutsInWeek(displayWeek),byDay={};
+    document.getElementById("workoutWeekTitle").textContent=displayWeek===currentWeek?"Workouts this week":"Workouts "+weekRangeLabel(displayWeek);
+    displayWorkouts.forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push(w.type); });
     var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
-      var on=byDay[i], label=on?(on.length>1?on.length+" workouts":on[0]):"Rest";
-      html+='<div class="wd'+(on?" on":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="type">'+label+'</span></div>';
+      var on=byDay[i], label=on?on:["Rest"];
+      html+='<div class="wd'+(on?" on":"")+(displayWeek!==currentWeek?" selected":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
-    document.getElementById("weekSummary").innerHTML=c+" done · "+(c>=good?'<span style="color:var(--ok)">at target</span>':(good-c)+" to hit "+good);
+    document.getElementById("weekSummary").innerHTML=displayWorkouts.length+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':(good-displayWorkouts.length)+" to hit "+good)+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
+    var resetBtn=document.getElementById("resetWeekBtn");
+    if(resetBtn){ resetBtn.addEventListener("click",function(){ selectedWorkoutWeek=null; render(); }); }
 
     // 8 week bars: 7 past weeks then current incomplete week, oldest left to newest right
     var now=new Date(),weeks=[];
     for(var w2=7;w2>=1;w2--){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
     weeks.push(weekKey(now)); // current week last, sits under the shaded column
-    var counts=weeks.map(function(wk){ return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; });
+    var counts=weeks.map(function(wk){ return workoutsInWeek(wk).length; });
     var mx=Math.max(4,Math.max.apply(null,counts));
     document.getElementById("weekBars").innerHTML=counts.map(function(cc,idx){
       var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
-      var wk=weeks[idx],d2=new Date(wk);d2.setDate(d2.getDate()+6);
+      var wk=weeks[idx],d2=dateObj(wk);d2.setDate(d2.getDate()+6);
       var range=fmtD(wk)+" to "+fmtD(iso(d2));
       var tooltip=cc+' workout'+(cc!==1?'s':'')+' ('+range+')';
-      return '<div class="bar" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+tooltip+'"><div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
+      return '<div class="bar'+(wk===displayWeek?' selected':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+tooltip+'"><div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
     }).join("");
+    document.querySelectorAll("#weekBars .bar").forEach(function(bar){
+      bar.addEventListener("click",function(){ selectedWorkoutWeek=bar.getAttribute("data-week"); render(); });
+    });
 
     // weight
     document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
