@@ -262,7 +262,7 @@
 
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
-  function iso(d){ return d.toISOString().slice(0,10); }
+  function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+dd; } // local date, not UTC, so weeks don't shift during BST
   function todayISO(){ return iso(new Date()); }
   function shortDate(s){ return new Date(s+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}); }
   function weekStart(d){ var x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; } // Sunday start
@@ -351,7 +351,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.5.1";
+    document.getElementById("versionLabel").textContent="v1.5.2";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -523,7 +523,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.5.1";
+    document.getElementById("versionLabel").textContent="v1.5.2";
   }
 
   // ---------- modes ----------
