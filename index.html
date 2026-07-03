@@ -20,6 +20,8 @@
   h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin:0}
   .eyebrow{font-family:'Space Grotesk';font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
   header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .logo{height:44px;width:auto;flex:none}
   .brand h1{font-size:19px;letter-spacing:.02em}
   .brand .sub{color:var(--muted);font-size:13px;margin-top:3px}
   .toprt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -126,9 +128,12 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <div class="eyebrow">Daniel OS</div>
-      <h1>CEO Dashboard</h1>
-      <div class="sub">Am I on track to quit the job and go all in?</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/615513a925054a7b9cea8d6f/6d880b47-2f23-4f12-b3c2-ea320bc0cfa7/DB_Logo_FullDisplay_Gold.png?format=1500w" alt="Daniel Bower" class="logo" />
+      <div>
+        <div class="eyebrow">Daniel OS</div>
+        <h1>CEO Dashboard</h1>
+        <div class="sub">Am I on track to quit the job and go all in?</div>
+      </div>
     </div>
     <div class="toprt">
       <span class="synced" id="syncedLabel"></span>
@@ -173,6 +178,21 @@
 
     <div class="grid g4" id="kpiRow"></div>
 
+    <div class="sect-title"><h2>Income</h2><span class="small faint">magic and maths, kept apart</span></div>
+    <div class="grid g2">
+      <div class="kpi">
+        <div class="lab">Magic <span class="faint" style="font-weight:400">· close up magic and hosting</span></div>
+        <div class="big money" id="magicIncome">--</div>
+        <div class="foot" id="magicFoot"></div>
+      </div>
+      <div class="kpi">
+        <div class="lab">Maths <span class="faint" style="font-weight:400">· tutoring</span></div>
+        <div class="big money" id="mathsIncome">--</div>
+        <div class="foot" id="mathsFoot"></div>
+        <div id="lessonsWrap" style="margin-top:12px"></div>
+      </div>
+    </div>
+
     <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
     <div class="grid g2">
       <div class="panel">
@@ -190,15 +210,11 @@
       </div>
     </div>
 
-    <div class="sect-title"><h2>Trajectory</h2><span class="small faint">turnover to date, year on year</span></div>
+    <div class="sect-title"><h2>Trajectory</h2><span class="small faint">total turnover to date, year on year</span></div>
     <div class="grid g2">
       <div class="panel">
         <div class="lab muted small">Turnover by this point in the year</div>
         <div class="yoy-list" id="revYoy"></div>
-      </div>
-      <div class="panel">
-        <div class="lab muted small">Maths lessons <span class="faint">· last 30 days and upcoming</span></div>
-        <div id="lessonsWrap"></div>
       </div>
     </div>
     <div class="foot-note" id="footNote"></div>
@@ -335,7 +351,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.4.0";
+    document.getElementById("versionLabel").textContent="v1.5.0";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -364,12 +380,17 @@
     }).join("");
 
     var avgGig=(m.avg_gig!=null?m.avg_gig:((m.gigs_last_month||0)>0?(m.magic_last_month||0)/(m.gigs_last_month||1):(m.avg_hr||0)));
+    var combinedLastMonth=(m.magic_last_month||0)+(m.tutoring_monthly||0);
     var kpis=[
-      {lab:"Turnover last month",big:gbp(m.magic_last_month||0),money:true,foot:(m.magic_last_month_label||"last month")+" · magic"},
+      {lab:"Turnover last month",big:gbp(combinedLastMonth),money:true,foot:"magic + maths, "+(m.magic_last_month_label||"last month")},
       {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+gbp(avgGig)+"/gig"},
       {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+gbp(m.ytd_prev1||0)+" this point last year"},
       {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?lw+" kg":"not logged")}
     ];
+    document.getElementById("magicIncome").textContent=gbp(m.magic_last_month||0);
+    document.getElementById("magicFoot").textContent=(m.gigs_last_month||0)+" gig"+((m.gigs_last_month||0)===1?"":"s")+" · avg "+gbp(avgGig)+"/gig";
+    document.getElementById("mathsIncome").textContent=gbp(m.tutoring_monthly||0);
+    document.getElementById("mathsFoot").textContent=lessDone+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
       var p=k.pill?'<span class="pill '+k.pill.c+'">'+k.pill.t+'</span>':'';
       return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+k.big+'</div><div class="foot">'+k.foot+'</div></div>';
@@ -496,7 +517,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.4.0";
+    document.getElementById("versionLabel").textContent="v1.5.0";
   }
 
   // ---------- modes ----------
