@@ -430,8 +430,8 @@
         '<g>'+pts.map(function(p,idx){ if(p[1]===null) return ''; var bad=p[2].kg>limit; return '<g class="point-group" style="cursor:pointer"><circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle><text class="point-label" x="'+p[0].toFixed(1)+'" y="'+(p[1]-12).toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:var(--gold);font-weight:600;pointer-events:none;transition:.1s">'+p[2].date+': '+p[2].kg+'kg</text></g>'; }).join("")+'</g>'+
         '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
-        '<text x="'+left+'" y="114">'+new Date(sw[0].date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</text>'+
-        '<text x="'+(left+w-32)+'" y="114">'+new Date(sw[sw.length-1].date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</text>';
+        '<text x="'+left+'" y="114">'+sw[0].date.slice(5)+'</text>'+
+        '<text x="'+(left+w-32)+'" y="114">'+sw[sw.length-1].date.slice(5)+'</text>';
       // Add hover listeners to point groups
       var pointGroups = chart.querySelectorAll(".point-group");
       pointGroups.forEach(function(g) {
