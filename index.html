@@ -64,6 +64,16 @@
   .kpi .foot{font-size:12px;color:var(--faint);margin-top:6px}
   .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
   .pill.ok{color:var(--ok);background:rgba(63,185,80,.12)} .pill.watch{color:var(--watch);background:rgba(210,153,34,.12)} .pill.behind{color:var(--behind);background:rgba(248,81,73,.12)}
+  .attention{margin-bottom:16px}
+  .attention-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .attention-head h2{font-size:15px}
+  .attention-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .attention-item{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--gold-dim);border-radius:8px;padding:11px 12px;min-height:82px}
+  .attention-item.ok{border-left-color:var(--ok)} .attention-item.watch{border-left-color:var(--watch)} .attention-item.behind{border-left-color:var(--behind)}
+  .attention-item .kind{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+  .attention-item.ok .kind{color:var(--ok)} .attention-item.watch .kind{color:var(--watch)} .attention-item.behind .kind{color:var(--behind)}
+  .attention-item .msg{font-size:13px;color:var(--text);line-height:1.35}
+  @media(max-width:860px){.attention-list{grid-template-columns:1fr}}
   .sect-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 12px}
   .sect-title h2{font-size:15px;letter-spacing:.01em}
   .weekdots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin:8px 0 2px}
@@ -89,12 +99,16 @@
   .tag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600}
   .tag.done{color:var(--ok);background:rgba(63,185,80,.12)} .tag.up{color:var(--gold);background:rgba(201,162,75,.12)}
   .muted{color:var(--muted)} .faint{color:var(--faint)} .small{font-size:12px}
-  .rev-yoy{display:flex;align-items:flex-end;gap:14px;height:120px;margin-top:8px;padding-top:6px}
-  .rev-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-  .rev-col .b{width:100%;max-width:70px;background:var(--panel-2);border-radius:5px 5px 0 0}
-  .rev-col .b.now{background:var(--gold)}
-  .rev-col .v{font-family:'IBM Plex Mono';font-size:12px;margin-bottom:5px}
-  .rev-col .yr{font-size:11px;color:var(--faint);margin-top:7px}
+  .yoy-list{display:grid;gap:10px;margin-top:10px}
+  .yoy-row{display:grid;grid-template-columns:74px minmax(0,1fr) 92px;gap:10px;align-items:center}
+  .yoy-label{font-size:12px;color:var(--muted)}
+  .yoy-value{font-family:'IBM Plex Mono';font-size:14px;color:var(--text)}
+  .yoy-delta{text-align:right;font-size:12px;color:var(--faint)}
+  .yoy-delta.ok{color:var(--ok)} .yoy-delta.behind{color:var(--behind)}
+  .yoy-track{height:7px;background:var(--panel-2);border-radius:20px;overflow:hidden}
+  .yoy-fill{height:100%;background:var(--gold-dim);border-radius:20px}
+  .yoy-row.now .yoy-fill{background:var(--gold)}
+  .yoy-note{font-size:12px;color:var(--faint);margin-top:12px}
   input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
   input:focus{outline:2px solid var(--gold);outline-offset:1px}
   .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
@@ -143,6 +157,14 @@
       </div>
     </section>
 
+    <section class="panel attention" id="attentionPanel">
+      <div class="attention-head">
+        <h2>Today's attention</h2>
+        <span class="small faint">the few things that matter next</span>
+      </div>
+      <div class="attention-list" id="attentionList"></div>
+    </section>
+
     <div class="grid g4" id="kpiRow"></div>
 
     <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
@@ -166,7 +188,7 @@
     <div class="grid g2">
       <div class="panel">
         <div class="lab muted small">Turnover by this point in the year</div>
-        <div class="rev-yoy" id="revYoy"></div>
+        <div class="yoy-list" id="revYoy"></div>
       </div>
       <div class="panel">
         <div class="lab muted small">Maths lessons <span class="faint">· last 30 days and upcoming</span></div>
@@ -282,6 +304,24 @@
     return {lead:lead,why:p.join(" ")};
   }
   function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
+  function attentionItems(sc,c,good,lw,lessUp){
+    var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
+    if(c<good) items.push({kind:c===good-1?"watch":"behind",label:c===good-1?"Watch":"Action",msg:"Log or book "+(good-c)+" more workout"+(good-c===1?"":"s")+" to hit this week's target."});
+    else items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
+    if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
+    else{
+      var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
+      if(diff>1) items.push({kind:diff>2?"behind":"watch",label:diff>2?"Action":"Watch",msg:"Weight is "+(diff>0?"+":"")+diff+" kg above baseline. The unhappy line is +1 kg."});
+      else items.push({kind:"ok",label:"Good",msg:"Weight is within the baseline band. Under baseline is fine."});
+    }
+    if(income<survival) items.push({kind:"behind",label:"Action",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
+    else if(income<full) items.push({kind:"watch",label:"Watch",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
+    else items.push({kind:"ok",label:"Good",msg:"Monthly income is past the full lifestyle line."});
+    if(sc.growth<0) items.push({kind:"behind",label:"Action",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
+    else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",msg:"Year-on-year growth is positive but not decisive yet."});
+    if(lessUp===0) items.push({kind:"watch",label:"Watch",msg:"No upcoming lessons are logged for the next 30 days."});
+    return items.slice(0,4);
+  }
 
   // ---------- render ----------
   function render(){
@@ -308,11 +348,15 @@
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
     var lessDone=S.lessons.filter(function(l){return l.status==="done"&&within(l.date,-30);}).length;
     var lessUp=S.lessons.filter(function(l){return l.status==="upcoming"&&within(l.date,30,true);}).length;
+    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,lw,lessUp).map(function(item){
+      return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
+    }).join("");
 
+    var avgGig=(m.avg_gig!=null?m.avg_gig:((m.gigs_last_month||0)>0?(m.magic_last_month||0)/(m.gigs_last_month||1):(m.avg_hr||0)));
     var kpis=[
       {lab:"Turnover last month",big:gbp(m.magic_last_month||0),money:true,foot:(m.magic_last_month_label||"last month")+" · magic"},
-      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+gbp(m.avg_hr||0)+"/hr"},
-      {lab:"Turnover so far this year",pill:{c:"ok",t:"+"+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+gbp(m.ytd_prev1||0)+" this point last year"},
+      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+gbp(avgGig)+"/gig"},
+      {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+gbp(m.ytd_prev1||0)+" this point last year"},
       {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?lw+" kg":"not logged")}
     ];
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
@@ -372,9 +416,13 @@
     else chart.innerHTML="";
 
     // revenue yoy
-    var data=[["2 yrs ago",m.ytd_prev2||0,false],["last year",m.ytd_prev1||0,false],["this year",m.ytd_current||0,true]];
-    var rmax=Math.max.apply(null,data.map(function(d){return d[1];}))||1;
-    document.getElementById("revYoy").innerHTML=data.map(function(d){ var h=Math.round(d[1]/rmax*100); return '<div class="rev-col"><div class="v">'+gbp(d[1])+'</div><div class="b'+(d[2]?" now":"")+'" style="height:'+h+'%"></div><div class="yr">'+d[0]+'</div></div>'; }).join("");
+    var data=[["this year",m.ytd_current||0,true],["last year",m.ytd_prev1||0,false],["2 yrs ago",m.ytd_prev2||0,false]];
+    var current=m.ytd_current||0,rmax=Math.max.apply(null,data.map(function(d){return d[1];}))||1;
+    document.getElementById("revYoy").innerHTML=data.map(function(d){
+      var pct=Math.round(d[1]/rmax*100),delta=current-d[1],deltaText=d[2]?"baseline":(delta>=0?gbp(delta)+" ahead":gbp(Math.abs(delta))+" behind");
+      var deltaClass=d[2]?"":(delta>=0?"ok":"behind");
+      return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+gbp(d[1])+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+deltaText+'</div></div>';
+    }).join("")+'<div class="yoy-note">Rows compare cumulative turnover at the same point in each year.</div>';
 
     // lessons
     var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+lessDone+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+lessUp+'</span> <span class="small muted">upcoming</span></div></div>';
@@ -389,7 +437,7 @@
     document.getElementById("verdictWhy").textContent="Your database is live and empty. Add rows to the metrics, workouts, weights and lessons tables and this fills in.";
     document.getElementById("subscores").innerHTML="";
     document.getElementById("kpiRow").innerHTML="";
-    ["weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
+    ["attentionList","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
