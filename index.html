@@ -384,13 +384,15 @@
     document.getElementById("weekDots").innerHTML=html;
     document.getElementById("weekSummary").innerHTML=c+" done · "+(c>=good?'<span style="color:var(--ok)">at target</span>':(good-c)+" to hit "+good);
 
-    // 8 week bars
+    // 8 week bars: current incomplete week + 7 past weeks
     var now=new Date(),weeks=[];
-    for(var w2=7;w2>=0;w2--){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
+    var todayWk=weekKey(now);
+    weeks.push(todayWk); // current week first
+    for(var w2=1;w2<=7;w2++){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
     var counts=weeks.map(function(wk){ return S.workouts.filter(function(w){return weekKey(new Date(w.date))===wk;}).length; });
     var mx=Math.max(4,Math.max.apply(null,counts));
     document.getElementById("weekBars").innerHTML=counts.map(function(cc,idx){
-      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(8-idx)+"w":"");
+      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===0?"now":(idx%2===1?(idx)+"w":"");
       var wk=weeks[idx],d1=new Date(wk),d2=new Date(wk);d2.setDate(d2.getDate()+6);
       var fmt=function(d){var m=d.getMonth()+1,dd=d.getDate();return dd+"/"+(m<10?"0":"")+m;};
       var range=fmt(d1)+" to "+fmt(d2);
@@ -404,27 +406,32 @@
     var dEl=document.getElementById("weightDelta");
     if(lw!=null){ var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=1?"var(--ok)":diff<=2?"var(--watch)":"var(--behind)"; dEl.innerHTML='<span style="color:'+col+'">'+(diff>0?"+":"")+diff+' kg vs baseline</span>'; }
     else dEl.innerHTML='<span class="faint">no weight logged</span>';
-    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-30),chart=document.getElementById("weightChart");
+    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-29); // last 29, plus today
+    // Add today if not already there
+    var today=todayISO();
+    if(sw.length===0 || sw[sw.length-1].date!==today){
+      sw.push({date:today,kg:null});
+    }
+    var chart=document.getElementById("weightChart");
     if(sw.length){
-      var vals=sw.map(function(x){return x.kg;}),baseLine=m.weight_baseline||90,limit=baseLine+1;
-      vals.push(baseLine); vals.push(limit);
-      var mn=Math.min.apply(null,vals)-0.5,mxx=Math.max.apply(null,vals)+0.5,rng=Math.max(1,mxx-mn);
+      var valsForCalc=sw.map(function(x){return x.kg;}).filter(function(v){return v!=null;}),baseLine=m.weight_baseline||90,limit=baseLine+1;
+      var mn=Math.min.apply(null,valsForCalc.concat([baseLine,limit]))-0.5,mxx=Math.max.apply(null,valsForCalc.concat([baseLine,limit]))+0.5,rng=Math.max(1,mxx-mn);
       var left=24,right=10,top=10,bottom=22,w=320-left-right,h=118-top-bottom;
       function xAt(i){ return sw.length===1? left+w/2 : left+(i/(sw.length-1))*w; }
       function yAt(v){ return top+(mxx-v)/rng*h; }
-      var pts=sw.map(function(x,i){return [xAt(i),yAt(x.kg),x];});
-      var poly=pts.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
+      var pts=sw.map(function(x,i){return [xAt(i),x.kg!=null?yAt(x.kg):null,x];});
+      var polyPts=pts.filter(function(p){return p[1]!=null;}).map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
       var yBase=yAt(baseLine), yLimit=yAt(limit), yTop=Math.min(yBase,yLimit), bandH=Math.abs(yLimit-yBase);
       chart.innerHTML=
         '<rect class="band" x="'+left+'" y="'+yTop.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
         '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
-        '<polyline class="line" points="'+poly+'"></polyline>'+
-        '<g>'+pts.map(function(p,idx){ var bad=p[2].kg>limit; return '<g class="point-group" style="cursor:pointer"><circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle><text class="point-label" x="'+p[0].toFixed(1)+'" y="'+(p[1]-12).toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:var(--gold);font-weight:600;pointer-events:none;transition:.1s">'+p[2].date+': '+p[2].kg+'kg</text></g>'; }).join("")+'</g>'+
+        '<polyline class="line" points="'+polyPts+'"></polyline>'+
+        '<g>'+pts.map(function(p,idx){ if(p[1]===null) return ''; var bad=p[2].kg>limit; return '<g class="point-group" style="cursor:pointer"><circle class="point'+(bad?' bad':'')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle><text class="point-label" x="'+p[0].toFixed(1)+'" y="'+(p[1]-12).toFixed(1)+'" text-anchor="middle" style="opacity:0;font-size:10px;fill:var(--gold);font-weight:600;pointer-events:none;transition:.1s">'+p[2].date+': '+p[2].kg+'kg</text></g>'; }).join("")+'</g>'+
         '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
-        '<text x="'+left+'" y="114">'+sw[0].date.slice(5)+'</text>'+
-        '<text x="'+(left+w-32)+'" y="114">'+sw[sw.length-1].date.slice(5)+'</text>';
+        '<text x="'+left+'" y="114">'+new Date(sw[0].date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</text>'+
+        '<text x="'+(left+w-32)+'" y="114">'+new Date(sw[sw.length-1].date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</text>';
       // Add hover listeners to point groups
       var pointGroups = chart.querySelectorAll(".point-group");
       pointGroups.forEach(function(g) {
