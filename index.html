@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" /> 
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex,nofollow,noarchive" />
 <title>Daniel OS · CEO Dashboard</title>
@@ -10,8 +10,8 @@
   :root{
     --ink:#0E1117; --panel:#161B22; --panel-2:#1C232D; --line:#26303B;
     --text:#E7ECF2; --muted:#8B97A6; --faint:#5C6774;
-    --gold:#C9A24B; --gold-dim:#8f7233; 
-    --ok:#3FB950; --watch:#D29922; --behind:#F85149; --r:12px; 
+    --gold:#C9A24B; --gold-dim:#8f7233;
+    --ok:#3FB950; --watch:#D29922; --behind:#F85149; --r:12px;
   }
   *{box-sizing:border-box} html,body{margin:0}
   body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.5;padding:20px;-webkit-font-smoothing:antialiased}
@@ -143,6 +143,16 @@
   .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
   .foot-note{color:var(--faint);font-size:11.5px;margin-top:26px;text-align:center;line-height:1.6}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* Privacy / visibility filter: blur ONLY the numbers (each wrapped in .pv).
+     Every label, word, chart shape and the gauge ring stays visible, so a screenshot
+     still shows what the dashboard is about without giving away a single figure. */
+  body.private .pv{
+    filter:blur(6px);
+    -webkit-filter:blur(6px);
+    user-select:none;
+    transition:filter .12s ease;
+  }
 </style>
 </head>
 <body>
@@ -153,7 +163,7 @@
       <div>
         <div class="eyebrow">Daniel OS</div>
         <h1>CEO Dashboard</h1>
-        <div class="sub">Am I on track to quit the job and go all in?</div>
+        <div class="sub">All in now. Is the trajectory holding?</div>
       </div>
     </div>
     <div class="toprt">
@@ -162,6 +172,7 @@
         <button id="mSample" class="on" role="tab">Sample</button>
         <button id="mLive" role="tab">Live</button>
       </div>
+      <button class="btn" id="privacyBtn" title="Blur the figures for screenshots">Hide numbers</button>
       <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="logoutBtn" style="display:none">Sign out</button>
     </div>
@@ -288,6 +299,7 @@
 
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
+  function pv(v){ return '<span class="pv">'+v+'</span>'; } // wrap a number so the privacy filter can blur it
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
   function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+dd; } // local date, not UTC, so weeks don't shift during BST
   function dateObj(s){ if(typeof s==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(s)){ var p=s.split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); } return new Date(s); }
@@ -369,16 +381,16 @@
   function verdict(sc){
     var o=sc.overall, lead;
     if(sc.discipline==null){
-      if(o>=7) lead="The business looks ready. Prove the training, then pick a date.";
+      if(o>=7) lead="The business looks strong. Log the training and hold the line.";
       else if(o>=5) lead="Money and momentum are building. Keep pushing.";
-      else lead="Early days. Grow the top line first.";
-    } else if(o>=8) lead="You are there. Pick a date and give notice.";
-    else if(o>=6.5) lead="Nearly. Hold this line for a month or two, then go.";
-    else if(o>=5) lead="Not yet. The engine is warming up.";
-    else lead="Keep building. The numbers are not there yet.";
+      else lead="Behind the line. Grow the top line first.";
+    } else if(o>=8) lead="On trajectory. This is the level to hold.";
+    else if(o>=6.5) lead="Close. Hold this line and keep it repeatable.";
+    else if(o>=5) lead="Off the pace. The engine needs more heat.";
+    else lead="Behind. The numbers are not where they need to be.";
     var p=[];
-    p.push("Last month you earned "+gbp(sc.income)+" across magic and tutoring, against a full lifestyle line of "+gbp(S.money.full_lifestyle_gross||7778)+".");
-    if(sc.growth>0.1) p.push("Turnover is up "+Math.round(sc.growth*100)+"% on this point last year.");
+    p.push("Last month you earned "+pv(gbp(sc.income))+" across magic and tutoring, against a full lifestyle line of "+pv(gbp(S.money.full_lifestyle_gross||7778))+".");
+    if(sc.growth>0.1) p.push("Turnover is up "+pv(Math.round(sc.growth*100)+"%")+" on this point last year.");
     if(sc.discipline==null) p.push("Log workouts and weight in the database so the discipline score reads true.");
     else{
       var pr=[["income against your lifestyle number",sc.money],["booked pipeline and growth",sc.momentum],["training consistency and weight",sc.discipline]];
@@ -409,9 +421,9 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.5.3";
+    document.getElementById("versionLabel").textContent="v1.6.1";
     var sc=scores(), vd=verdict(sc), m=S.money;
-    document.getElementById("scoreN").textContent=sc.overall.toFixed(1);
+    document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
     var arc=document.getElementById("gaugeArc"),full=327;
     arc.style.strokeDashoffset=String(Math.round(full-full*(sc.overall/10)));
     arc.setAttribute("stroke",statusColor(sc.overall));
@@ -421,11 +433,11 @@
     tp.textContent=st[0]; tp.style.color=st[1]; tp.style.background=st[2]; tp.style.display="inline-flex";
 
     document.getElementById("verdictLead").textContent=vd.lead;
-    document.getElementById("verdictWhy").textContent=vd.why;
+    document.getElementById("verdictWhy").innerHTML=vd.why;
     var subs=[["Money",sc.money],["Momentum",sc.momentum],["Discipline",sc.discipline==null?"–":sc.discipline]];
     document.getElementById("subscores").innerHTML=subs.map(function(s){
       var v=s[1],col=(v==="–")?"var(--faint)":statusColor(v);
-      return '<div class="sub"><div class="lab"><span class="dot" style="background:'+col+'"></span>'+s[0]+'</div><div class="val">'+(v==="–"?"–":v)+'<span class="faint" style="font-size:12px">/10</span></div></div>';
+      return '<div class="sub"><div class="lab"><span class="dot" style="background:'+col+'"></span>'+s[0]+'</div><div class="val">'+(v==="–"?"–":pv(v))+'<span class="faint" style="font-size:12px">/10</span></div></div>';
     }).join("");
 
     var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
@@ -441,21 +453,22 @@
     var combinedLastMonth=(m.magic_last_month||0)+(m.tutoring_monthly||0);
     var kpis=[
       {lab:"Turnover last month",big:gbp(combinedLastMonth),money:true,foot:"magic + maths, "+(m.magic_last_month_label||"last month")},
-      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+gbp(avgGig)+"/gig"},
-      {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+gbp(m.ytd_prev1||0)+" this point last year"},
-      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?lw+" kg":"not logged")}
+      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+pv(gbp(avgGig))+"/gig"},
+      {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"},
+      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")}
     ];
-    document.getElementById("magicIncome").textContent=gbp(m.magic_last_month||0);
-    document.getElementById("magicFoot").textContent=(m.gigs_last_month||0)+" gig"+((m.gigs_last_month||0)===1?"":"s")+" · avg "+gbp(avgGig)+"/gig";
-    document.getElementById("mathsIncome").textContent=gbp(m.tutoring_monthly||0);
-    document.getElementById("mathsFoot").textContent=lessDone+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
+    document.getElementById("magicIncome").innerHTML=pv(gbp(m.magic_last_month||0));
+    document.getElementById("magicFoot").innerHTML=pv(m.gigs_last_month||0)+" gig"+((m.gigs_last_month||0)===1?"":"s")+" · avg "+pv(gbp(avgGig))+"/gig";
+    document.getElementById("mathsIncome").innerHTML=pv(gbp(m.tutoring_monthly||0));
+    document.getElementById("mathsFoot").innerHTML=pv(lessDone)+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
     var magicUpcoming=Array.isArray(m.magic_upcoming)?m.magic_upcoming:[];
     document.getElementById("magicDetail").innerHTML=magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,4).map(function(g){
-      return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+gbp(g.amount||0)+'</span></div>';
+      return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
     }).join("")+'</div>':'<div class="small faint">No upcoming magic bookings table is connected yet.</div>';
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
-      var p=k.pill?'<span class="pill '+k.pill.c+'">'+k.pill.t+'</span>':'';
-      return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+k.big+'</div><div class="foot">'+k.foot+'</div></div>';
+      var pt=k.pill?(/\d/.test(k.pill.t)?pv(k.pill.t):k.pill.t):'';
+      var p=k.pill?'<span class="pill '+k.pill.c+'">'+pt+'</span>':'';
+      return '<div class="kpi"><div class="lab">'+k.lab+' '+p+'</div><div class="big'+(k.money?' money':'')+'">'+pv(k.big)+'</div><div class="foot">'+k.foot+'</div></div>';
     }).join("");
 
     // week dots (Sunday start)
@@ -468,7 +481,7 @@
       html+='<div class="wd'+(on?" on":"")+(displayWeek!==currentWeek?" selected":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
-    document.getElementById("weekSummary").innerHTML=displayWorkouts.length+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':(good-displayWorkouts.length)+" to hit "+good)+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
+    document.getElementById("weekSummary").innerHTML=pv(displayWorkouts.length)+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':pv(good-displayWorkouts.length)+" to hit "+pv(good))+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
     var resetBtn=document.getElementById("resetWeekBtn");
     if(resetBtn){ resetBtn.addEventListener("click",function(){ selectedWorkoutWeek=null; render(); }); }
 
@@ -491,9 +504,9 @@
 
     // weight
     document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
-    document.getElementById("weightNow").textContent=lw!=null?lw+" kg":"--";
+    document.getElementById("weightNow").innerHTML=lw!=null?pv(lw+" kg"):"--";
     var dEl=document.getElementById("weightDelta");
-    if(lw!=null){ var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=1?"var(--ok)":diff<=2?"var(--watch)":"var(--behind)"; dEl.innerHTML='<span style="color:'+col+'">'+(diff>0?"+":"")+diff+' kg vs baseline</span>'; }
+    if(lw!=null){ var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=1?"var(--ok)":diff<=2?"var(--watch)":"var(--behind)"; dEl.innerHTML='<span style="color:'+col+'">'+pv((diff>0?"+":"")+diff+" kg")+' vs baseline</span>'; }
     else dEl.innerHTML='<span class="faint">no weight logged</span>';
     var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-29); // last 29, plus today
     // Add today if not already there
@@ -539,11 +552,11 @@
             '<circle class="point '+(bad?'bad':'good')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>'+
             '<g class="point-tip" style="opacity:0;pointer-events:none;transition:.1s">'+
               '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
-              '<text x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
+              '<text class="pv" x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
             '</g></g>';
         }).join("")+'</g>'+
-        '<text x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
-        '<text x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
+        '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
+        '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
         '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>';
       // Add hover listeners to point groups
@@ -567,13 +580,13 @@
     document.getElementById("revYoy").innerHTML=data.map(function(d){
       var pct=Math.round(d[1]/rmax*100),delta=current-d[1],deltaText=d[2]?"baseline":(delta>=0?gbp(delta)+" ahead":gbp(Math.abs(delta))+" behind");
       var deltaClass=d[2]?"":(delta>=0?"ok":"behind");
-      return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+gbp(d[1])+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+deltaText+'</div></div>';
+      return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+pv(gbp(d[1]))+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+(/\d/.test(deltaText)?pv(deltaText):deltaText)+'</div></div>';
     }).join("")+'<div class="yoy-note">Rows compare cumulative turnover at the same point in each year.</div>';
 
     // lessons
-    var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+lessDone+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+lessUp+'</span> <span class="small muted">upcoming</span></div></div>';
+    var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessDone)+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessUp)+'</span> <span class="small muted">upcoming</span></div></div>';
     var rows=S.lessons.slice().sort(function(a,b){return a.date<b.date?1:-1;}).slice(0,6);
-    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<div class="mini-list">'+rows.map(function(l){return '<div class="mini-row"><span class="mono">'+shortDate(l.date)+'</span><strong>'+esc(l.student||"Lesson")+'</strong><span class="amount">'+(l.amount!=null?gbp(l.amount):'<span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span>')+'</span></div>';}).join("")+'</div>' : '<div class="small faint">No lessons in the database.</div>');
+    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<div class="mini-list">'+rows.map(function(l){return '<div class="mini-row"><span class="mono">'+shortDate(l.date)+'</span><strong>'+esc(l.student||"Lesson")+'</strong><span class="amount">'+(l.amount!=null?pv(gbp(l.amount)):'<span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span>')+'</span></div>';}).join("")+'</div>' : '<div class="small faint">No lessons in the database.</div>');
   }
 
   function showEmptyState(){
@@ -587,7 +600,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.5.3";
+    document.getElementById("versionLabel").textContent="v1.6.1";
   }
 
   // ---------- modes ----------
@@ -604,6 +617,17 @@
     else b.innerHTML="";
   }
   function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Showing sample data. " : "Live from Supabase. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
+
+  // ---------- privacy / visibility filter ----------
+  var privacyBtn=document.getElementById("privacyBtn");
+  function setPrivacy(on){
+    document.body.classList.toggle("private",on);
+    privacyBtn.textContent=on?"Show numbers":"Hide numbers";
+    privacyBtn.classList.toggle("gold",on);
+    privacyBtn.setAttribute("aria-pressed",on?"true":"false");
+    try{ localStorage.setItem("os_ceo_privacy",on?"1":"0"); }catch(e){}
+  }
+  privacyBtn.addEventListener("click",function(){ setPrivacy(!document.body.classList.contains("private")); });
 
   async function getClient(){
     if(sb) return sb;
@@ -675,8 +699,10 @@
   document.getElementById("loginPass").addEventListener("keydown",function(e){ if(e.key==="Enter") document.getElementById("loginBtn").click(); });
   document.getElementById("logoutBtn").addEventListener("click",async function(){ var client=await getClient(); if(client){ await client.auth.signOut(); } loadLive(); });
 
-  // init: honour saved mode, and handle a magic-link redirect (which lands in Live)
+  // init: honour saved mode, saved privacy, and handle a magic-link redirect (which lands in Live)
   (async function init(){
+    var savedPrivacy="0"; try{ savedPrivacy=localStorage.getItem("os_ceo_privacy")||"0"; }catch(e){}
+    setPrivacy(savedPrivacy==="1");
     var saved="sample"; try{ saved=localStorage.getItem("os_ceo_mode")||"sample"; }catch(e){}
     if(location.hash.indexOf("access_token")>-1) saved="live";
     setMode(saved);
