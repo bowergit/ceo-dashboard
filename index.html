@@ -331,11 +331,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"},
     {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"},
     {v:"1.7.0",d:"2026-07-05",note:"Live magic gig feed pulled from a published, trimmed sheet CSV (no client names)"},
     {v:"1.6.1",d:"2026-07-05",note:"Numbers-only privacy blur — only figures blur, labels and words stay readable"},
-    {v:"1.6.0",d:"2026-07-05",note:"Reframed for post-quit accountability instead of quit-decision framing"},
-    {v:"1.5.3",d:"2026-07-01",note:"Baseline dashboard prior to this changelog existing"}
+    {v:"1.6.0",d:"2026-07-05",note:"Reframed for post-quit accountability instead of quit-decision framing"}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -456,7 +456,15 @@
     for(var b=0;b<10;b++){ var d4=new Date(today); d4.setDate(d4.getDate()+b*3+2); ls.push({date:iso(d4),status:"upcoming",student:students[(b+1)%students.length][0],amount:students[(b+1)%students.length][1]}); }
     var future=function(days){ var d=new Date(today); d.setDate(d.getDate()+days); return iso(d); };
     return {
-      money:{magic_last_month:4200,magic_last_month_label:"last sample month",gigs_last_month:5,ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,magic_upcoming:[{date:future(6),event:"Wedding drinks reception",amount:650},{date:future(13),event:"Corporate mixer",amount:850},{date:future(24),event:"Private birthday party",amount:450},{date:future(37),event:"Awards night hosting",amount:1200}]},
+      money:{
+        magic_this_month:3900,magic_this_month_count:4,magic_this_month_label:"this sample month",
+        magic_last_month:4200,magic_last_month_label:"last sample month",gigs_last_month:5,
+        magic_same_month_last_year:3100,magic_same_month_last_year_label:"same month last (sample) year",
+        booked_this_week:1,booked_this_month:3,booked_month_value:1800,
+        ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,
+        survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
+        magic_upcoming:[{date:future(6),event:"Wedding drinks reception",amount:650},{date:future(13),event:"Corporate mixer",amount:850},{date:future(24),event:"Private birthday party",amount:450},{date:future(37),event:"Awards night hosting",amount:1200}]
+      },
       workouts:wk, weights:wt, lessons:ls
     };
   }
@@ -573,7 +581,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.8.0";
+    document.getElementById("versionLabel").textContent="v1.8.1";
     var magicBadge=document.getElementById("magicBadge"), mathsBadge=document.getElementById("mathsBadge"), healthBadge=document.getElementById("healthBadge");
     if(magicBadge) magicBadge.innerHTML=srcBadge(S.gigsLive);
     if(mathsBadge) mathsBadge.innerHTML=srcBadge(HEALTH_LIVE);
@@ -774,7 +782,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.8.0";
+    document.getElementById("versionLabel").textContent="v1.8.1";
   }
 
   // ---------- modes ----------
@@ -787,10 +795,10 @@
   }
   function setBanner(mode){
     var b=document.getElementById("banner");
-    if(mode==="sample"){ b.innerHTML='<span class="badge sample">Live magic · sample health</span> <span class="small faint" style="margin-left:8px">Magic income, turnover and bookings are live from your gig sheet. Weight, workouts and tutoring are sample until you sign in to Live.</span>'; }
+    if(mode==="sample"){ b.innerHTML='<span class="badge sample">Sample data</span> <span class="small faint" style="margin-left:8px">Every figure on this screen is fictional and safe to show anyone. Switch to Live to read your real gig, health and tutoring data.</span>'; }
     else b.innerHTML="";
   }
-  function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Magic is live from your gig sheet; health is sample. " : "Live from Supabase, magic from your gig sheet. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
+  function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Showing fictional sample data. " : "Live from Supabase and your gig sheet. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
 
   // ---------- privacy / visibility filter ----------
   var privacyBtn=document.getElementById("privacyBtn");
@@ -816,10 +824,10 @@
 
   async function loadSample(){
     var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
-    HEALTH_LIVE=false;
+    HEALTH_LIVE=false; S.gigsLive=false; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
     document.getElementById("logoutBtn").style.display="none";
     setBanner("sample"); showView("app"); footNote();
-    await mergeGigs(); setSynced("live magic · sample health"); render();
+    setSynced("sample data"); render();
   }
 
   async function loadLive(){
