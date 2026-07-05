@@ -295,6 +295,8 @@
      ============================================================ */
   var SUPABASE_URL      = "https://uilytgubukiinyrqrltj.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_WK5p8tUAsNLEqnmxVT7Eag_2EVNbi7V";
+  /* Published (trimmed, no client names) Google Sheet CSV — the live magic gig feed. */
+  var GIGS_CSV_URL      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRPkSjbGeEct7RDDdPPAUqUnzhSf3qMurCcgfgzeanml2_nmQEoX-WFPWOwSRd-ebJN1N6ivuCY2qYa/pub?gid=829887708&single=true&output=csv";
   /* ============================================================ */
 
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
@@ -309,6 +311,68 @@
   function weekKey(d){ var w=weekStart(d); return iso(w); }
   var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   function fmtD(isoStr){ var p=String(isoStr).split("-"); return parseInt(p[2],10)+" "+MONTHS[parseInt(p[1],10)-1]; }
+
+  // ---------- live magic gigs feed (published Google Sheet CSV; trimmed, no client names) ----------
+  var GIG_CACHE=null;
+  function parseUKDate(s){ // "22 Oct 21" or "13 Oct 2025" -> "YYYY-MM-DD", else null
+    s=(s||"").trim(); if(!s||s==="-"||/^n\/?a$/i.test(s)) return null;
+    var m=s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/); if(!m) return null;
+    var name=m[2].charAt(0).toUpperCase()+m[2].slice(1,3).toLowerCase(), mi=MONTHS.indexOf(name);
+    if(mi<0) return null;
+    var y=parseInt(m[3],10); if(y<100) y+=2000;
+    return iso(new Date(y,mi,parseInt(m[1],10)));
+  }
+  function parseFee(s){ var n=parseFloat((s||"").replace(/[£,\s]/g,"")); return isNaN(n)?0:n; }
+  function parseCSV(text){ // minimal RFC-ish parser; handles quoted fields with commas
+    var rows=[],f="",row=[],q=false,ch,i;
+    text=String(text).replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+    for(i=0;i<text.length;i++){ ch=text[i];
+      if(q){ if(ch==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=ch; }
+      else if(ch==='"') q=true;
+      else if(ch===","){ row.push(f); f=""; }
+      else if(ch==="\n"){ row.push(f); rows.push(row); row=[]; f=""; }
+      else f+=ch;
+    }
+    if(f!==""||row.length){ row.push(f); rows.push(row); }
+    return rows;
+  }
+  async function getGigs(){
+    if(GIG_CACHE) return GIG_CACHE;
+    var res=await fetch(GIGS_CSV_URL,{cache:"no-store"});
+    if(!res.ok) throw new Error("feed "+res.status);
+    var rows=parseCSV(await res.text()), out=[];
+    for(var i=1;i<rows.length;i++){ var r=rows[i]; if(!r||r.length<3) continue;
+      var ev=parseUKDate(r[2]); if(!ev) continue; // a real event date is required
+      out.push({name:(r[0]||"").trim(), booked:parseUKDate(r[1]), event:ev, fee:parseFee(r[3]), type:(r[4]||"").trim()});
+    }
+    GIG_CACHE=out; return out;
+  }
+  function magicFromGigs(gigs){
+    var now=new Date(), tISO=todayISO();
+    var lm=new Date(now.getFullYear(),now.getMonth(),1); lm.setDate(0); // last day of previous month
+    var lmY=lm.getFullYear(), lmM=lm.getMonth();
+    function feeSum(a){ return a.reduce(function(s,g){return s+(g.fee||0);},0); }
+    var lastMonth=gigs.filter(function(g){var d=dateObj(g.event);return d.getFullYear()===lmY&&d.getMonth()===lmM;});
+    function ytd(year){ var cut=iso(new Date(year,now.getMonth(),now.getDate())); // same day-of-year
+      return feeSum(gigs.filter(function(g){return dateObj(g.event).getFullYear()===year && g.event<=cut;})); }
+    var upcoming=gigs.filter(function(g){return g.event>tISO;}).sort(function(a,b){return a.event<b.event?-1:1;});
+    var booked=gigs.filter(function(g){return g.booked;}), ws=iso(weekStart(now));
+    var bMonth=booked.filter(function(g){var d=dateObj(g.booked);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();});
+    var magicLast=feeSum(lastMonth);
+    return {
+      magic_last_month:magicLast, magic_last_month_label:MONTHS[lmM]+" "+lmY,
+      gigs_last_month:lastMonth.length, avg_gig:lastMonth.length?magicLast/lastMonth.length:0,
+      ytd_current:ytd(now.getFullYear()), ytd_prev1:ytd(now.getFullYear()-1), ytd_prev2:ytd(now.getFullYear()-2),
+      magic_upcoming:upcoming.slice(0,8).map(function(g){return {date:g.event,event:g.name,amount:g.fee};}),
+      upcoming_count:upcoming.length,
+      booked_this_week:booked.filter(function(g){return g.booked>=ws;}).length,
+      booked_this_month:bMonth.length, booked_month_value:feeSum(bMonth)
+    };
+  }
+  async function mergeGigs(){ // overlay live magic numbers onto S.money; keep whatever's there if the feed fails
+    try{ var g=await getGigs(); S.gigs=g; Object.assign(S.money, magicFromGigs(g)); }
+    catch(e){ S.gigs=S.gigs||[]; }
+  }
 
   // ---------- sample data (fictional, never real) ----------
   function sampleData(){
@@ -402,6 +466,9 @@
   function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
   function attentionItems(sc,c,good,lw,lessUp){
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
+    var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
+    if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
+    else items.push({kind:"watch",label:"Booked",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
     if(c<good) items.push({kind:c===good-1?"watch":"behind",label:c===good-1?"Watch":"Action",msg:"Log or book "+(good-c)+" more workout"+(good-c===1?"":"s")+" to hit this week's target."});
     else items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
     if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
@@ -421,7 +488,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.6.1";
+    document.getElementById("versionLabel").textContent="v1.7.0";
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -462,9 +529,10 @@
     document.getElementById("mathsIncome").innerHTML=pv(gbp(m.tutoring_monthly||0));
     document.getElementById("mathsFoot").innerHTML=pv(lessDone)+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
     var magicUpcoming=Array.isArray(m.magic_upcoming)?m.magic_upcoming:[];
-    document.getElementById("magicDetail").innerHTML=magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,4).map(function(g){
+    var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month · '+pv(m.upcoming_count!=null?m.upcoming_count:magicUpcoming.length)+' upcoming</div>';
+    document.getElementById("magicDetail").innerHTML=bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
       return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
-    }).join("")+'</div>':'<div class="small faint">No upcoming magic bookings table is connected yet.</div>';
+    }).join("")+'</div>':'<div class="small faint">No upcoming gigs in the feed yet.</div>');
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
       var pt=k.pill?(/\d/.test(k.pill.t)?pv(k.pill.t):k.pill.t):'';
       var p=k.pill?'<span class="pill '+k.pill.c+'">'+pt+'</span>':'';
@@ -600,7 +668,7 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.6.1";
+    document.getElementById("versionLabel").textContent="v1.7.0";
   }
 
   // ---------- modes ----------
@@ -613,10 +681,10 @@
   }
   function setBanner(mode){
     var b=document.getElementById("banner");
-    if(mode==="sample"){ b.innerHTML='<span class="badge sample">Sample data</span> <span class="small faint" style="margin-left:8px">fictional numbers, safe to show anyone. Switch to Live to read your real data from Supabase.</span>'; }
+    if(mode==="sample"){ b.innerHTML='<span class="badge sample">Live magic · sample health</span> <span class="small faint" style="margin-left:8px">Magic income, turnover and bookings are live from your gig sheet. Weight, workouts and tutoring are sample until you sign in to Live.</span>'; }
     else b.innerHTML="";
   }
-  function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Showing sample data. " : "Live from Supabase. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
+  function footNote(){ document.getElementById("footNote").innerHTML = (mode==="sample"? "Magic is live from your gig sheet; health is sample. " : "Live from Supabase, magic from your gig sheet. ")+"This screen only reads, it never changes your data. Private to you, not indexed."; }
 
   // ---------- privacy / visibility filter ----------
   var privacyBtn=document.getElementById("privacyBtn");
@@ -640,7 +708,8 @@
   async function loadSample(){
     var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
     document.getElementById("logoutBtn").style.display="none";
-    setBanner("sample"); setSynced("sample data"); showView("app"); footNote(); render();
+    setBanner("sample"); showView("app"); footNote();
+    await mergeGigs(); setSynced("live magic · sample health"); render();
   }
 
   async function loadLive(){
@@ -663,6 +732,7 @@
       showView("app"); footNote();
       if(!metrics && S.workouts.length===0 && S.weights.length===0){ showEmptyState(); setSynced("connected · empty"); return; }
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
+      await mergeGigs();
       setSynced("synced "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
       render();
     }catch(e){
