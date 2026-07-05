@@ -1,3 +1,12 @@
+<!--
+  AGENT NOTE (Claude Code / Codex / any AI editing this file):
+  Daniel runs more than one AI tool against this repo across sessions, sometimes concurrently.
+  Before editing: (1) re-read this file fresh from disk, don't trust a cached copy from earlier
+  context; (2) `git fetch origin` and check for commits since you last saw this repo.
+  After editing: (3) bump the version in versionLabel (search for it, two places) AND prepend a
+  new entry to the CHANGELOG array in <script> (keep only the 5 most recent); (4) commit on a
+  branch and merge into main (don't push straight to main) so changes stay revertable as a unit.
+-->
 <!doctype html>
 <html lang="en">
 <head>
@@ -153,6 +162,13 @@
     user-select:none;
     transition:filter .12s ease;
   }
+  /* The big readiness number is 42px — 6px blur reads through it, so it needs more. */
+  body.private #scoreN .pv{ filter:blur(18px); -webkit-filter:blur(18px); }
+
+  .icon-btn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:.15s}
+  .icon-btn:hover{border-color:var(--gold-dim);color:var(--gold);background:var(--panel)}
+  .icon-btn.on{color:var(--gold);border-color:var(--gold-dim);background:#1e1a10}
+  .icon-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -172,7 +188,10 @@
         <button id="mSample" class="on" role="tab">Sample</button>
         <button id="mLive" role="tab">Live</button>
       </div>
-      <button class="btn" id="privacyBtn" title="Blur the figures for screenshots">Hide numbers</button>
+      <button class="icon-btn" id="privacyBtn" type="button" aria-pressed="false" aria-label="Toggle discreet mode" title="Toggle discreet mode">
+        <svg class="eye-open" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="eye-closed" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 2l20 20M9.9 9.9a3 3 0 0 0 4.2 4.2M6.5 6.7C3.7 8.5 2 12 2 12s4 7 11 7c1.8 0 3.4-.4 4.8-1.1M17.9 17.9C20.6 16 22 12 22 12s-1.4-3.1-4.2-5.3"/></svg>
+      </button>
       <button class="btn" id="refreshBtn">Refresh</button>
       <button class="btn" id="logoutBtn" style="display:none">Sign out</button>
     </div>
@@ -214,7 +233,7 @@
     <div class="grid g2">
       <details class="income-card" id="magicCard">
         <summary>
-        <div class="lab">Magic <span class="faint" style="font-weight:400">· close up magic and hosting</span></div>
+        <div class="lab">Magic <span class="faint" style="font-weight:400">· close up magic and hosting</span> <span id="magicBadge"></span></div>
         <div class="big money" id="magicIncome">--</div>
         <div class="foot" id="magicFoot"></div>
         </summary>
@@ -222,7 +241,7 @@
       </details>
       <details class="income-card" id="mathsCard">
         <summary>
-        <div class="lab">Maths <span class="faint" style="font-weight:400">· tutoring</span></div>
+        <div class="lab">Maths <span class="faint" style="font-weight:400">· tutoring</span> <span id="mathsBadge"></span></div>
         <div class="big money" id="mathsIncome">--</div>
         <div class="foot" id="mathsFoot"></div>
         </summary>
@@ -230,7 +249,7 @@
       </details>
     </div>
 
-    <div class="sect-title"><h2>Health and discipline</h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
+    <div class="sect-title"><h2>Health and discipline <span id="healthBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
     <div class="grid g2">
       <div class="panel">
         <div class="lab muted small" id="workoutWeekTitle">Workouts this week</div>
@@ -255,6 +274,10 @@
       </div>
     </div>
     <div class="foot-note" id="footNote"></div>
+    <details style="margin-top:14px;text-align:center">
+      <summary class="small faint" style="cursor:pointer;display:inline-block">Recent changes</summary>
+      <div class="small muted" id="changelogList" style="margin-top:8px;max-width:60ch;margin-left:auto;margin-right:auto;text-align:left"></div>
+    </details>
     <div style="margin-top:12px;font-size:10px;color:var(--faint);text-align:right" id="versionLabel"></div>
   </div>
 
@@ -302,6 +325,22 @@
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
   function pv(v){ return '<span class="pv">'+v+'</span>'; } // wrap a number so the privacy filter can blur it
+  function srcBadge(isLive){ return '<span class="pill '+(isLive?'ok':'watch')+'" style="font-weight:700">'+(isLive?'LIVE':'SAMPLE')+'</span>'; }
+
+  // Recent changes — newest first, keep max 5. Whichever agent (Claude, Codex, etc.) makes a
+  // change should prepend a new entry here and drop the oldest, so the footer and anyone
+  // re-reading this file cold can see what happened recently without digging through git log.
+  var CHANGELOG=[
+    {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"},
+    {v:"1.7.0",d:"2026-07-05",note:"Live magic gig feed pulled from a published, trimmed sheet CSV (no client names)"},
+    {v:"1.6.1",d:"2026-07-05",note:"Numbers-only privacy blur — only figures blur, labels and words stay readable"},
+    {v:"1.6.0",d:"2026-07-05",note:"Reframed for post-quit accountability instead of quit-decision framing"},
+    {v:"1.5.3",d:"2026-07-01",note:"Baseline dashboard prior to this changelog existing"}
+  ];
+  function renderChangelog(){
+    var el=document.getElementById("changelogList"); if(!el) return;
+    el.innerHTML=CHANGELOG.map(function(c){ return '<div>'+c.d+' · v'+c.v+' — '+esc(c.note)+'</div>'; }).join("");
+  }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
   function iso(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+dd; } // local date, not UTC, so weeks don't shift during BST
   function dateObj(s){ if(typeof s==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(s)){ var p=s.split("-"); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); } return new Date(s); }
@@ -348,30 +387,38 @@
     GIG_CACHE=out; return out;
   }
   function magicFromGigs(gigs){
-    var now=new Date(), tISO=todayISO();
-    var lm=new Date(now.getFullYear(),now.getMonth(),1); lm.setDate(0); // last day of previous month
+    var now=new Date(), tISO=todayISO(), cY=now.getFullYear(), cM=now.getMonth();
+    var lm=new Date(cY,cM,1); lm.setDate(0); // last day of previous month
     var lmY=lm.getFullYear(), lmM=lm.getMonth();
     function feeSum(a){ return a.reduce(function(s,g){return s+(g.fee||0);},0); }
-    var lastMonth=gigs.filter(function(g){var d=dateObj(g.event);return d.getFullYear()===lmY&&d.getMonth()===lmM;});
-    function ytd(year){ var cut=iso(new Date(year,now.getMonth(),now.getDate())); // same day-of-year
+    function inMonth(g,y,mo){ var d=dateObj(g.event); return d.getFullYear()===y&&d.getMonth()===mo; }
+    // "this month" pulls every gig dated in the current calendar month — past AND future —
+    // because a gig booked for later this month is already confirmed money, not a guess.
+    // That's how a look at the whole month avoids the "well you've only made X so far" bias
+    // of only counting days that have already happened.
+    var thisMonth=gigs.filter(function(g){return inMonth(g,cY,cM);});
+    var lastMonth=gigs.filter(function(g){return inMonth(g,lmY,lmM);}); // fully completed, for a stable comparison
+    var sameMonthLastYear=gigs.filter(function(g){return inMonth(g,cY-1,cM);});
+    function ytd(year){ var cut=iso(new Date(year,now.getMonth(),now.getDate())); // same day-of-year cut, for the annual trajectory panel
       return feeSum(gigs.filter(function(g){return dateObj(g.event).getFullYear()===year && g.event<=cut;})); }
     var upcoming=gigs.filter(function(g){return g.event>tISO;}).sort(function(a,b){return a.event<b.event?-1:1;});
     var booked=gigs.filter(function(g){return g.booked;}), ws=iso(weekStart(now));
-    var bMonth=booked.filter(function(g){var d=dateObj(g.booked);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();});
-    var magicLast=feeSum(lastMonth);
+    var bMonth=booked.filter(function(g){var d=dateObj(g.booked);return d.getFullYear()===cY&&d.getMonth()===cM;});
+    var thisMonthValue=feeSum(thisMonth), lastMonthValue=feeSum(lastMonth), lastYearValue=feeSum(sameMonthLastYear);
     return {
-      magic_last_month:magicLast, magic_last_month_label:MONTHS[lmM]+" "+lmY,
-      gigs_last_month:lastMonth.length, avg_gig:lastMonth.length?magicLast/lastMonth.length:0,
-      ytd_current:ytd(now.getFullYear()), ytd_prev1:ytd(now.getFullYear()-1), ytd_prev2:ytd(now.getFullYear()-2),
+      magic_this_month:thisMonthValue, magic_this_month_count:thisMonth.length, magic_this_month_label:MONTHS[cM]+" "+cY,
+      magic_last_month:lastMonthValue, gigs_last_month:lastMonth.length, magic_last_month_label:MONTHS[lmM]+" "+lmY,
+      magic_same_month_last_year:lastYearValue, magic_same_month_last_year_label:MONTHS[cM]+" "+(cY-1),
+      avg_gig:thisMonth.length?thisMonthValue/thisMonth.length:(lastMonth.length?lastMonthValue/lastMonth.length:0),
+      ytd_current:ytd(cY), ytd_prev1:ytd(cY-1), ytd_prev2:ytd(cY-2),
       magic_upcoming:upcoming.slice(0,8).map(function(g){return {date:g.event,event:g.name,amount:g.fee};}),
-      upcoming_count:upcoming.length,
       booked_this_week:booked.filter(function(g){return g.booked>=ws;}).length,
       booked_this_month:bMonth.length, booked_month_value:feeSum(bMonth)
     };
   }
   async function mergeGigs(){ // overlay live magic numbers onto S.money; keep whatever's there if the feed fails
-    try{ var g=await getGigs(); S.gigs=g; Object.assign(S.money, magicFromGigs(g)); }
-    catch(e){ S.gigs=S.gigs||[]; }
+    try{ var g=await getGigs(); S.gigs=g; Object.assign(S.money, magicFromGigs(g)); S.gigsLive=true; }
+    catch(e){ S.gigs=S.gigs||[]; S.gigsLive=false; }
   }
 
   // ---------- sample data (fictional, never real) ----------
@@ -422,7 +469,31 @@
   function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}).length; }
   function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}); }
   function weekRangeLabel(wk){ var start=dateObj(wk),end=dateObj(wk); end.setDate(end.getDate()+6); return fmtD(wk)+" to "+fmtD(iso(end)); }
-  function latestWeight(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0].kg; }
+  function latestWeightEntry(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0]; }
+  function latestWeight(){ var e=latestWeightEntry(); return e?e.kg:null; }
+  function weightNDaysAgo(refDateISO, days){ // nearest logged weight within 3 days of (ref - days), for a week-over-week comparison
+    var target=dateObj(refDateISO); target.setDate(target.getDate()-days);
+    var best=null, bestDiff=Infinity;
+    S.weights.forEach(function(w){
+      var diff=Math.abs((dateObj(w.date)-target)/86400000);
+      if(diff<=3 && diff<bestDiff){ best=w.kg; bestDiff=diff; }
+    });
+    return best;
+  }
+  function weightTrend(){ // kg change vs ~a week ago; null if there's no reading from back then to compare to
+    var e=latestWeightEntry(); if(!e) return null;
+    var prior=weightNDaysAgo(e.date,7); if(prior==null) return null;
+    return Math.round((e.kg-prior)*10)/10;
+  }
+  function dayOfWeekIndex(d){ return d.getDay()+1; } // Sunday=1 .. Saturday=7 (Sunday is day one of the week)
+  function workoutPace(c, good, great){
+    var day=dayOfWeekIndex(new Date()), expected=Math.ceil(good*day/7);
+    if(c>=great) return {cls:"ok", label:"great"};
+    if(c>=good) return {cls:"ok", label:"good"};
+    if(c>=expected) return {cls:"ok", label:"on track"}; // enough done for how far into the week we are
+    if(c>0) return {cls:"watch", label:"behind pace"};
+    return {cls: day<=2?"watch":"behind", label:"none yet"};
+  }
   function scores(){
     var m=S.money;
     var income=(m.magic_last_month||0)+(m.tutoring_monthly||0);
@@ -435,8 +506,9 @@
     if(haveHealth){
       var c=workoutsThisWeek(), good=m.workouts_good||3, great=m.workouts_great||4;
       var wS=c>=great?10:c>=good?8:c===2?6:c===1?3:0;
-      var lw=latestWeight(), base=m.weight_baseline||90, wtS=6;
-      if(lw!=null){ var over=lw-base; wtS=over<=1?10:over<=2?7:over<=4?5:3; }
+      var lw=latestWeight(), trend=weightTrend(), wtS=6;
+      if(trend!=null) wtS = trend<=0?10 : trend<=1?7 : 4; // trending down/flat vs a week ago is what matters, not a hard absolute line
+      else if(lw!=null){ var base=m.weight_baseline||90, over=lw-base; wtS=over<=2?8:over<=4?6:4; } // softened fallback when there's no week-ago reading yet
       discipline=Math.round(0.6*wS+0.4*wtS);
     }
     var overall= discipline==null? Math.round((money*0.55+momentum*0.45)*10)/10 : Math.round((money*0.4+momentum*0.35+discipline*0.25)*10)/10;
@@ -464,18 +536,31 @@
     return {lead:lead,why:p.join(" ")};
   }
   function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
-  function attentionItems(sc,c,good,lw,lessUp){
+  function attentionItems(sc,c,good,great,lw,lessUp){
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
     if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
     else items.push({kind:"watch",label:"Booked",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
-    if(c<good) items.push({kind:c===good-1?"watch":"behind",label:c===good-1?"Watch":"Action",msg:"Log or book "+(good-c)+" more workout"+(good-c===1?"":"s")+" to hit this week's target."});
-    else items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
+    if(c>=good) items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
+    else{
+      var pace=workoutPace(c,good,great);
+      if(pace.label==="on track") items.push({kind:"ok",label:"On track",msg:c+" done so far is on pace for "+good+" this week — keep going."});
+      else if(pace.cls==="watch"&&c>0) items.push({kind:"watch",label:"Watch",msg:"Behind pace for "+good+" this week — log "+(good-c)+" more soon."});
+      else items.push({kind:pace.cls,label:pace.cls==="behind"?"Action":"Watch",msg:"No workouts logged this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of time left.":"Get one in.")});
+    }
     if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
-      var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
-      if(diff>1) items.push({kind:diff>2?"behind":"watch",label:diff>2?"Action":"Watch",msg:"Weight is "+(diff>0?"+":"")+diff+" kg above baseline. The unhappy line is +1 kg."});
-      else items.push({kind:"ok",label:"Good",msg:"Weight is within the baseline band. Under baseline is fine."});
+      var trend=weightTrend();
+      if(trend!=null){
+        if(trend<=0) items.push({kind:"ok",label:"Good",msg:"Weight is "+(trend<0?Math.abs(trend)+"kg down":"flat")+" vs a week ago. Good trajectory."});
+        else if(trend<=1) items.push({kind:"watch",label:"Watch",msg:"Weight is up "+trend+"kg vs a week ago. Keep an eye on it."});
+        else items.push({kind:"behind",label:"Action",msg:"Weight is up "+trend+"kg vs a week ago. Get back on track this week."});
+      } else {
+        var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
+        if(diff>4) items.push({kind:"behind",label:"Action",msg:"Weight is +"+diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
+        else if(diff>2) items.push({kind:"watch",label:"Watch",msg:"Weight is +"+diff+"kg vs baseline."});
+        else items.push({kind:"ok",label:"Good",msg:"Weight is close to baseline."});
+      }
     }
     if(income<survival) items.push({kind:"behind",label:"Action",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
     else if(income<full) items.push({kind:"watch",label:"Watch",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
@@ -488,7 +573,11 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.7.0";
+    document.getElementById("versionLabel").textContent="v1.8.0";
+    var magicBadge=document.getElementById("magicBadge"), mathsBadge=document.getElementById("mathsBadge"), healthBadge=document.getElementById("healthBadge");
+    if(magicBadge) magicBadge.innerHTML=srcBadge(S.gigsLive);
+    if(mathsBadge) mathsBadge.innerHTML=srcBadge(HEALTH_LIVE);
+    if(healthBadge) healthBadge.innerHTML=srcBadge(HEALTH_LIVE);
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -508,29 +597,40 @@
     }).join("");
 
     var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
-    var wkClass=c>=good?"ok":c===2?"watch":"behind", wkLabel=c>=great?"great":c===3?"good":c===2?"fine":c===1?"low":"none";
+    var pace=workoutPace(c,good,great), wkClass=pace.cls, wkLabel=pace.label;
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
     var lessDone=S.lessons.filter(function(l){return l.status==="done"&&within(l.date,-30);}).length;
     var lessUp=S.lessons.filter(function(l){return l.status==="upcoming"&&within(l.date,30,true);}).length;
-    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,lw,lessUp).map(function(item){
+    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,great,lw,lessUp).map(function(item){
       return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
 
-    var avgGig=(m.avg_gig!=null?m.avg_gig:((m.gigs_last_month||0)>0?(m.magic_last_month||0)/(m.gigs_last_month||1):(m.avg_hr||0)));
-    var combinedLastMonth=(m.magic_last_month||0)+(m.tutoring_monthly||0);
+    // "This month" = every gig dated in the current calendar month, past and future — a gig already
+    // booked for later this month is confirmed money, so the month total doesn't get judged as
+    // low just because it's still early in the month. See magicFromGigs() for the full logic.
+    var thisMonthValue=m.magic_this_month||0, thisMonthCount=m.magic_this_month_count||0;
+    var lastMonthValue=m.magic_last_month||0, lastYearValue=m.magic_same_month_last_year||0;
+    var avgGig=(m.avg_gig!=null?m.avg_gig:(thisMonthCount>0?thisMonthValue/thisMonthCount:0));
+    function pctVs(curr,prior){ if(!prior) return null; var p=Math.round((curr/prior-1)*100); return (p>=0?"+":"")+p+"%"; }
+    var pctLastMonth=pctVs(thisMonthValue,lastMonthValue), pctLastYear=pctVs(thisMonthValue,lastYearValue);
+    var combinedThisMonth=thisMonthValue+(m.tutoring_monthly||0);
     var kpis=[
-      {lab:"Turnover last month",big:gbp(combinedLastMonth),money:true,foot:"magic + maths, "+(m.magic_last_month_label||"last month")},
-      {lab:"Gigs last month",big:String(m.gigs_last_month||0),foot:"avg "+pv(gbp(avgGig))+"/gig"},
+      {lab:"Turnover this month",big:gbp(combinedThisMonth),money:true,foot:"magic (booked) + maths, "+(m.magic_this_month_label||"this month")},
+      {lab:"Gigs this month",big:String(thisMonthCount),foot:"avg "+pv(gbp(avgGig))+"/gig"+(pctLastMonth?" · "+pv(pctLastMonth)+" vs last month":"")},
       {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"},
       {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")}
     ];
-    document.getElementById("magicIncome").innerHTML=pv(gbp(m.magic_last_month||0));
-    document.getElementById("magicFoot").innerHTML=pv(m.gigs_last_month||0)+" gig"+((m.gigs_last_month||0)===1?"":"s")+" · avg "+pv(gbp(avgGig))+"/gig";
+    document.getElementById("magicIncome").innerHTML=pv(gbp(thisMonthValue));
+    document.getElementById("magicFoot").innerHTML=pv(thisMonthCount)+" gig"+(thisMonthCount===1?"":"s")+" booked in "+(m.magic_this_month_label||"this month");
     document.getElementById("mathsIncome").innerHTML=pv(gbp(m.tutoring_monthly||0));
     document.getElementById("mathsFoot").innerHTML=pv(lessDone)+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
     var magicUpcoming=Array.isArray(m.magic_upcoming)?m.magic_upcoming:[];
-    var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month · '+pv(m.upcoming_count!=null?m.upcoming_count:magicUpcoming.length)+' upcoming</div>';
-    document.getElementById("magicDetail").innerHTML=bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
+    var cmpLines=[];
+    if(lastMonthValue>0) cmpLines.push((pctLastMonth?pv(pctLastMonth)+" ":"")+"vs "+pv(gbp(lastMonthValue))+" in "+(m.magic_last_month_label||"last month"));
+    if(lastYearValue>0) cmpLines.push((pctLastYear?pv(pctLastYear)+" ":"")+"vs "+pv(gbp(lastYearValue))+" in "+(m.magic_same_month_last_year_label||"last year"));
+    var cmpBlock=cmpLines.length?'<div class="small muted" style="margin-bottom:6px">'+cmpLines.join(' · ')+'</div>':'';
+    var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month (by date booked)</div>';
+    document.getElementById("magicDetail").innerHTML=cmpBlock+bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
       return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
     }).join("")+'</div>':'<div class="small faint">No upcoming gigs in the feed yet.</div>');
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
@@ -573,9 +673,14 @@
     // weight
     document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
     document.getElementById("weightNow").innerHTML=lw!=null?pv(lw+" kg"):"--";
-    var dEl=document.getElementById("weightDelta");
-    if(lw!=null){ var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=1?"var(--ok)":diff<=2?"var(--watch)":"var(--behind)"; dEl.innerHTML='<span style="color:'+col+'">'+pv((diff>0?"+":"")+diff+" kg")+' vs baseline</span>'; }
-    else dEl.innerHTML='<span class="faint">no weight logged</span>';
+    var dEl=document.getElementById("weightDelta"), wTrend=weightTrend();
+    if(lw!=null&&wTrend!=null){
+      var tcol=wTrend<=0?"var(--ok)":wTrend<=1?"var(--watch)":"var(--behind)";
+      dEl.innerHTML='<span style="color:'+tcol+'">'+pv((wTrend>0?"+":"")+wTrend+" kg")+' vs a week ago</span>';
+    } else if(lw!=null){
+      var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=2?"var(--ok)":diff<=4?"var(--watch)":"var(--behind)";
+      dEl.innerHTML='<span style="color:'+col+'">'+pv((diff>0?"+":"")+diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
+    } else dEl.innerHTML='<span class="faint">no weight logged</span>';
     var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-29); // last 29, plus today
     // Add today if not already there
     var today=todayISO();
@@ -606,9 +711,10 @@
         '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
-        '<g>'+pts.map(function(p,idx){
+        '<g>'+(function(){ var prevKg=null; return pts.map(function(p,idx){
           if(p[1]===null) return '';
-          var bad=p[2].kg>limit;
+          var curKg=p[2].kg, bad=(prevKg!=null && curKg>prevKg); // colour by trend vs the previous reading, not a fixed cutoff
+          prevKg=curKg;
           var statusCol=bad?"var(--behind)":"var(--ok)";
           var lx=Math.min(Math.max(p[0],left+50),left+w-50); // clamp so the tooltip box never clips at the edges
           var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
@@ -622,7 +728,7 @@
               '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
               '<text class="pv" x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
             '</g></g>';
-        }).join("")+'</g>'+
+        }); })().join("")+'</g>'+
         '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
@@ -668,11 +774,11 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.7.0";
+    document.getElementById("versionLabel").textContent="v1.8.0";
   }
 
   // ---------- modes ----------
-  var mode="sample", sb=null;
+  var mode="sample", sb=null, HEALTH_LIVE=false; // whether weight/workouts/tutoring are real (Supabase, signed in) vs sample
   function setSynced(t){ document.getElementById("syncedLabel").textContent=t; }
   function showView(which){
     document.getElementById("app").style.display = which==="app"?"block":"none";
@@ -688,11 +794,14 @@
 
   // ---------- privacy / visibility filter ----------
   var privacyBtn=document.getElementById("privacyBtn");
+  var eyeOpen=privacyBtn.querySelector(".eye-open"), eyeClosed=privacyBtn.querySelector(".eye-closed");
   function setPrivacy(on){
     document.body.classList.toggle("private",on);
-    privacyBtn.textContent=on?"Show numbers":"Hide numbers";
-    privacyBtn.classList.toggle("gold",on);
+    privacyBtn.classList.toggle("on",on);
     privacyBtn.setAttribute("aria-pressed",on?"true":"false");
+    privacyBtn.title=on?"Numbers hidden — click to show":"Numbers visible — click to hide";
+    eyeOpen.style.display=on?"none":"inline";
+    eyeClosed.style.display=on?"inline":"none";
     try{ localStorage.setItem("os_ceo_privacy",on?"1":"0"); }catch(e){}
   }
   privacyBtn.addEventListener("click",function(){ setPrivacy(!document.body.classList.contains("private")); });
@@ -707,6 +816,7 @@
 
   async function loadSample(){
     var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
+    HEALTH_LIVE=false;
     document.getElementById("logoutBtn").style.display="none";
     setBanner("sample"); showView("app"); footNote();
     await mergeGigs(); setSynced("live magic · sample health"); render();
@@ -730,12 +840,14 @@
       var metrics=(r[0].data&&r[0].data[0])||null;
       S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[];
       showView("app"); footNote();
-      if(!metrics && S.workouts.length===0 && S.weights.length===0){ showEmptyState(); setSynced("connected · empty"); return; }
+      if(!metrics && S.workouts.length===0 && S.weights.length===0){ HEALTH_LIVE=false; showEmptyState(); setSynced("connected · empty"); return; }
+      HEALTH_LIVE=true;
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
       await mergeGigs();
       setSynced("synced "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
       render();
     }catch(e){
+      HEALTH_LIVE=false;
       showView("app");
       document.getElementById("verdictLead").textContent="Could not read the database.";
       document.getElementById("verdictWhy").textContent=String(e.message||e)+" Check the schema is applied and your login email matches the policy.";
@@ -771,6 +883,7 @@
 
   // init: honour saved mode, saved privacy, and handle a magic-link redirect (which lands in Live)
   (async function init(){
+    renderChangelog();
     var savedPrivacy="0"; try{ savedPrivacy=localStorage.getItem("os_ceo_privacy")||"0"; }catch(e){}
     setPrivacy(savedPrivacy==="1");
     var saved="sample"; try{ saved=localStorage.getItem("os_ceo_mode")||"sample"; }catch(e){}
