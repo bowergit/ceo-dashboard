@@ -131,6 +131,8 @@
   .weight-chart .point:hover{r:5;filter:drop-shadow(0 0 4px rgba(63,185,80,.5))}
   .weight-chart .point.bad{stroke:var(--behind);fill:var(--behind)}
   .weight-chart .point.bad:hover{filter:drop-shadow(0 0 4px rgba(248,81,73,.5))}
+  .weight-chart .point.watch{stroke:var(--watch);fill:var(--watch)}
+  .weight-chart .point.watch:hover{filter:drop-shadow(0 0 4px rgba(210,153,34,.5))}
   .weight-chart text{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--faint)}
   table.lessons{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   table.lessons td{padding:6px 4px;border-bottom:1px solid var(--line);color:var(--muted)}
@@ -325,17 +327,30 @@
   var clamp=function(n,a,b){return Math.max(a,Math.min(b,n));};
   function gbp(n){ return "£"+Math.round(n).toLocaleString("en-GB"); }
   function pv(v){ return '<span class="pv">'+v+'</span>'; } // wrap a number so the privacy filter can blur it
-  function srcBadge(isLive){ return '<span class="pill '+(isLive?'ok':'watch')+'" style="font-weight:700">'+(isLive?'LIVE':'SAMPLE')+'</span>'; }
+  // Data-source state is one of "sample" | "loading" | "live" | "error" — four distinct states,
+  // not a live/sample boolean, so a failed or in-flight fetch never gets silently mislabeled
+  // as "sample" or rendered as a misleading £0.
+  function srcBadge(state){
+    if(state==="loading") return '<span class="pill watch" style="font-weight:700">LOADING…</span>';
+    if(state==="live") return '<span class="pill ok" style="font-weight:700">LIVE</span>';
+    if(state==="error") return '<span class="pill behind" style="font-weight:700">FEED ERROR</span>';
+    return '<span class="pill watch" style="font-weight:700">SAMPLE</span>';
+  }
+  function srcTag(label,state){ // compact per-KPI provenance tag, e.g. "magic LIVE"
+    var word = state==="loading"?"…":state==="live"?"LIVE":state==="error"?"ERROR":"SAMPLE";
+    var cls = state==="live"?"ok":state==="error"?"behind":"watch";
+    return '<span class="pill '+cls+'" style="font-weight:700;font-size:10px;padding:1px 6px;margin-left:4px">'+label+' '+word+'</span>';
+  }
 
   // Recent changes — newest first, keep max 5. Whichever agent (Claude, Codex, etc.) makes a
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own \"magic LIVE\"/\"maths SAMPLE\" tag; feed fetch retries once before erroring; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading (was flagging ordinary daily noise as red)"},
     {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"},
     {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"},
     {v:"1.7.0",d:"2026-07-05",note:"Live magic gig feed pulled from a published, trimmed sheet CSV (no client names)"},
-    {v:"1.6.1",d:"2026-07-05",note:"Numbers-only privacy blur — only figures blur, labels and words stay readable"},
-    {v:"1.6.0",d:"2026-07-05",note:"Reframed for post-quit accountability instead of quit-decision framing"}
+    {v:"1.6.1",d:"2026-07-05",note:"Numbers-only privacy blur — only figures blur, labels and words stay readable"}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -377,14 +392,20 @@
   }
   async function getGigs(){
     if(GIG_CACHE) return GIG_CACHE;
-    var res=await fetch(GIGS_CSV_URL,{cache:"no-store"});
-    if(!res.ok) throw new Error("feed "+res.status);
-    var rows=parseCSV(await res.text()), out=[];
-    for(var i=1;i<rows.length;i++){ var r=rows[i]; if(!r||r.length<3) continue;
-      var ev=parseUKDate(r[2]); if(!ev) continue; // a real event date is required
-      out.push({name:(r[0]||"").trim(), booked:parseUKDate(r[1]), event:ev, fee:parseFee(r[3]), type:(r[4]||"").trim()});
+    var lastErr=null;
+    for(var attempt=0; attempt<2; attempt++){ // one retry — a transient network blip shouldn't surface as a hard error
+      try{
+        var res=await fetch(GIGS_CSV_URL,{cache:"no-store"});
+        if(!res.ok) throw new Error("feed "+res.status);
+        var rows=parseCSV(await res.text()), out=[];
+        for(var i=1;i<rows.length;i++){ var r=rows[i]; if(!r||r.length<3) continue;
+          var ev=parseUKDate(r[2]); if(!ev) continue; // a real event date is required
+          out.push({name:(r[0]||"").trim(), booked:parseUKDate(r[1]), event:ev, fee:parseFee(r[3]), type:(r[4]||"").trim()});
+        }
+        GIG_CACHE=out; return out;
+      }catch(e){ lastErr=e; if(attempt===0) await new Promise(function(res2){ setTimeout(res2,700); }); }
     }
-    GIG_CACHE=out; return out;
+    throw lastErr;
   }
   function magicFromGigs(gigs){
     var now=new Date(), tISO=todayISO(), cY=now.getFullYear(), cM=now.getMonth();
@@ -417,8 +438,8 @@
     };
   }
   async function mergeGigs(){ // overlay live magic numbers onto S.money; keep whatever's there if the feed fails
-    try{ var g=await getGigs(); S.gigs=g; Object.assign(S.money, magicFromGigs(g)); S.gigsLive=true; }
-    catch(e){ S.gigs=S.gigs||[]; S.gigsLive=false; }
+    try{ var g=await getGigs(); S.gigs=g; Object.assign(S.money, magicFromGigs(g)); GIGS_STATE="live"; }
+    catch(e){ S.gigs=S.gigs||[]; GIGS_STATE="error"; } // a real failure, not "sample" — the render layer must not show a bare £0 for this
   }
 
   // ---------- sample data (fictional, never real) ----------
@@ -490,8 +511,11 @@
   }
   function weightTrend(){ // kg change vs ~a week ago; null if there's no reading from back then to compare to
     var e=latestWeightEntry(); if(!e) return null;
-    var prior=weightNDaysAgo(e.date,7); if(prior==null) return null;
-    return Math.round((e.kg-prior)*10)/10;
+    return weightTrendAt(e.date,e.kg);
+  }
+  function weightTrendAt(dateISO,kg){ // same week-over-week comparison, but for an arbitrary point (used per chart dot)
+    var prior=weightNDaysAgo(dateISO,7); if(prior==null) return null;
+    return Math.round((kg-prior)*10)/10;
   }
   function dayOfWeekIndex(d){ return d.getDay()+1; } // Sunday=1 .. Saturday=7 (Sunday is day one of the week)
   function workoutPace(c, good, great){
@@ -581,11 +605,8 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.8.1";
-    var magicBadge=document.getElementById("magicBadge"), mathsBadge=document.getElementById("mathsBadge"), healthBadge=document.getElementById("healthBadge");
-    if(magicBadge) magicBadge.innerHTML=srcBadge(S.gigsLive);
-    if(mathsBadge) mathsBadge.innerHTML=srcBadge(HEALTH_LIVE);
-    if(healthBadge) healthBadge.innerHTML=srcBadge(HEALTH_LIVE);
+    document.getElementById("versionLabel").textContent="v1.9.0";
+    paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -616,31 +637,40 @@
     // "This month" = every gig dated in the current calendar month, past and future — a gig already
     // booked for later this month is confirmed money, so the month total doesn't get judged as
     // low just because it's still early in the month. See magicFromGigs() for the full logic.
-    var thisMonthValue=m.magic_this_month||0, thisMonthCount=m.magic_this_month_count||0;
-    var lastMonthValue=m.magic_last_month||0, lastYearValue=m.magic_same_month_last_year||0;
-    var avgGig=(m.avg_gig!=null?m.avg_gig:(thisMonthCount>0?thisMonthValue/thisMonthCount:0));
+    // gigsUsable is true when there are real numbers worth showing (genuinely live, or intentionally
+    // fictional in Sample mode) — false while loading or after a failed fetch, so those two states
+    // never render as a bare, misleading "£0".
+    var gigsUsable = (GIGS_STATE==="live"||GIGS_STATE==="sample");
+    var magicNote = GIGS_STATE==="loading"?"Loading the gig feed…":GIGS_STATE==="error"?"Gig feed unavailable — try Refresh.":"";
+    var thisMonthValue=gigsUsable?(m.magic_this_month||0):0, thisMonthCount=gigsUsable?(m.magic_this_month_count||0):0;
+    var lastMonthValue=gigsUsable?(m.magic_last_month||0):0, lastYearValue=gigsUsable?(m.magic_same_month_last_year||0):0;
+    var avgGig=gigsUsable?(m.avg_gig!=null?m.avg_gig:(thisMonthCount>0?thisMonthValue/thisMonthCount:0)):0;
     function pctVs(curr,prior){ if(!prior) return null; var p=Math.round((curr/prior-1)*100); return (p>=0?"+":"")+p+"%"; }
-    var pctLastMonth=pctVs(thisMonthValue,lastMonthValue), pctLastYear=pctVs(thisMonthValue,lastYearValue);
+    var pctLastMonth=gigsUsable?pctVs(thisMonthValue,lastMonthValue):null, pctLastYear=gigsUsable?pctVs(thisMonthValue,lastYearValue):null;
     var combinedThisMonth=thisMonthValue+(m.tutoring_monthly||0);
     var kpis=[
-      {lab:"Turnover this month",big:gbp(combinedThisMonth),money:true,foot:"magic (booked) + maths, "+(m.magic_this_month_label||"this month")},
-      {lab:"Gigs this month",big:String(thisMonthCount),foot:"avg "+pv(gbp(avgGig))+"/gig"+(pctLastMonth?" · "+pv(pctLastMonth)+" vs last month":"")},
-      {lab:"Turnover so far this year",pill:{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"},big:gbp(m.ytd_current||0),money:true,foot:"vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"},
-      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")}
+      {lab:"Turnover this month",big:gigsUsable?gbp(combinedThisMonth):"--",money:true,foot:gigsUsable?("magic (booked) + maths, "+(m.magic_this_month_label||"this month")+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
+      {lab:"Gigs this month",big:gigsUsable?String(thisMonthCount):"--",foot:gigsUsable?("avg "+pv(gbp(avgGig))+"/gig"+(pctLastMonth?" · "+pv(pctLastMonth)+" vs last month":"")+srcTag("magic",GIGS_STATE)):magicNote},
+      {lab:"Turnover so far this year",pill:gigsUsable?{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"}:null,big:gigsUsable?gbp(m.ytd_current||0):"--",money:true,foot:gigsUsable?("vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"+srcTag("magic",GIGS_STATE)):magicNote},
+      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)}
     ];
-    document.getElementById("magicIncome").innerHTML=pv(gbp(thisMonthValue));
-    document.getElementById("magicFoot").innerHTML=pv(thisMonthCount)+" gig"+(thisMonthCount===1?"":"s")+" booked in "+(m.magic_this_month_label||"this month");
+    document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(thisMonthValue)):"--";
+    document.getElementById("magicFoot").innerHTML=gigsUsable?(pv(thisMonthCount)+" gig"+(thisMonthCount===1?"":"s")+" booked in "+(m.magic_this_month_label||"this month")):magicNote;
     document.getElementById("mathsIncome").innerHTML=pv(gbp(m.tutoring_monthly||0));
     document.getElementById("mathsFoot").innerHTML=pv(lessDone)+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
-    var magicUpcoming=Array.isArray(m.magic_upcoming)?m.magic_upcoming:[];
-    var cmpLines=[];
-    if(lastMonthValue>0) cmpLines.push((pctLastMonth?pv(pctLastMonth)+" ":"")+"vs "+pv(gbp(lastMonthValue))+" in "+(m.magic_last_month_label||"last month"));
-    if(lastYearValue>0) cmpLines.push((pctLastYear?pv(pctLastYear)+" ":"")+"vs "+pv(gbp(lastYearValue))+" in "+(m.magic_same_month_last_year_label||"last year"));
-    var cmpBlock=cmpLines.length?'<div class="small muted" style="margin-bottom:6px">'+cmpLines.join(' · ')+'</div>':'';
-    var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month (by date booked)</div>';
-    document.getElementById("magicDetail").innerHTML=cmpBlock+bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
-      return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
-    }).join("")+'</div>':'<div class="small faint">No upcoming gigs in the feed yet.</div>');
+    var magicUpcoming=(gigsUsable&&Array.isArray(m.magic_upcoming))?m.magic_upcoming:[];
+    if(gigsUsable){
+      var cmpLines=[];
+      if(lastMonthValue>0) cmpLines.push((pctLastMonth?pv(pctLastMonth)+" ":"")+"vs "+pv(gbp(lastMonthValue))+" in "+(m.magic_last_month_label||"last month"));
+      if(lastYearValue>0) cmpLines.push((pctLastYear?pv(pctLastYear)+" ":"")+"vs "+pv(gbp(lastYearValue))+" in "+(m.magic_same_month_last_year_label||"last year"));
+      var cmpBlock=cmpLines.length?'<div class="small muted" style="margin-bottom:6px">'+cmpLines.join(' · ')+'</div>':'';
+      var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month (by date booked)</div>';
+      document.getElementById("magicDetail").innerHTML=cmpBlock+bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
+        return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
+      }).join("")+'</div>':'<div class="small faint">No upcoming gigs in the feed yet.</div>');
+    } else {
+      document.getElementById("magicDetail").innerHTML='<div class="small faint">'+magicNote+'</div>';
+    }
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
       var pt=k.pill?(/\d/.test(k.pill.t)?pv(k.pill.t):k.pill.t):'';
       var p=k.pill?'<span class="pill '+k.pill.c+'">'+pt+'</span>':'';
@@ -719,11 +749,14 @@
         '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
-        '<g>'+(function(){ var prevKg=null; return pts.map(function(p,idx){
+        '<g>'+pts.map(function(p,idx){
           if(p[1]===null) return '';
-          var curKg=p[2].kg, bad=(prevKg!=null && curKg>prevKg); // colour by trend vs the previous reading, not a fixed cutoff
-          prevKg=curKg;
-          var statusCol=bad?"var(--behind)":"var(--ok)";
+          // Colour each dot by its own week-over-week trend (vs a reading ~7 days before IT, not "today"),
+          // same logic as the headline. A one-day uptick that's still part of a good weekly trend won't
+          // flash red — only a genuine week-over-week rise does. No comparison available yet = neutral, not bad.
+          var curKg=p[2].kg, trendAtPt=weightTrendAt(p[2].date,curKg);
+          var cls = trendAtPt==null?"good":(trendAtPt<=0?"good":trendAtPt<=1?"watch":"bad");
+          var statusCol=cls==="bad"?"var(--behind)":cls==="watch"?"var(--watch)":"var(--ok)";
           var lx=Math.min(Math.max(p[0],left+50),left+w-50); // clamp so the tooltip box never clips at the edges
           var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
           var labelText=fmtD(p[2].date)+': '+p[2].kg+'kg';
@@ -731,12 +764,12 @@
           var boxX=lx-boxW/2, boxY=ly-boxH+4;
           return '<g class="point-group" style="cursor:pointer">'+
             '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="transparent"></circle>'+ // bigger hover target
-            '<circle class="point '+(bad?'bad':'good')+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>'+
+            '<circle class="point '+cls+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>'+
             '<g class="point-tip" style="opacity:0;pointer-events:none;transition:.1s">'+
               '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
               '<text class="pv" x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
             '</g></g>';
-        }); })().join("")+'</g>'+
+        }).join("")+'</g>'+
         '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
@@ -756,14 +789,18 @@
     }
     else chart.innerHTML="";
 
-    // revenue yoy
-    var data=[["this year",m.ytd_current||0,true],["last year",m.ytd_prev1||0,false],["2 yrs ago",m.ytd_prev2||0,false]];
-    var current=m.ytd_current||0,rmax=Math.max.apply(null,data.map(function(d){return d[1];}))||1;
-    document.getElementById("revYoy").innerHTML=data.map(function(d){
-      var pct=Math.round(d[1]/rmax*100),delta=current-d[1],deltaText=d[2]?"baseline":(delta>=0?gbp(delta)+" ahead":gbp(Math.abs(delta))+" behind");
-      var deltaClass=d[2]?"":(delta>=0?"ok":"behind");
-      return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+pv(gbp(d[1]))+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+(/\d/.test(deltaText)?pv(deltaText):deltaText)+'</div></div>';
-    }).join("")+'<div class="yoy-note">Rows compare cumulative turnover at the same point in each year.</div>';
+    // revenue yoy — this is entirely magic-feed derived, so it's just as subject to the loading/error guard
+    if(gigsUsable){
+      var data=[["this year",m.ytd_current||0,true],["last year",m.ytd_prev1||0,false],["2 yrs ago",m.ytd_prev2||0,false]];
+      var current=m.ytd_current||0,rmax=Math.max.apply(null,data.map(function(d){return d[1];}))||1;
+      document.getElementById("revYoy").innerHTML=data.map(function(d){
+        var pct=Math.round(d[1]/rmax*100),delta=current-d[1],deltaText=d[2]?"baseline":(delta>=0?gbp(delta)+" ahead":gbp(Math.abs(delta))+" behind");
+        var deltaClass=d[2]?"":(delta>=0?"ok":"behind");
+        return '<div class="yoy-row'+(d[2]?" now":"")+'"><div class="yoy-label">'+d[0]+'</div><div><div class="yoy-value">'+pv(gbp(d[1]))+'</div><div class="yoy-track"><div class="yoy-fill" style="width:'+pct+'%"></div></div></div><div class="yoy-delta '+deltaClass+'">'+(/\d/.test(deltaText)?pv(deltaText):deltaText)+'</div></div>';
+      }).join("")+'<div class="yoy-note">Rows compare cumulative turnover at the same point in each year.'+srcTag("magic",GIGS_STATE)+'</div>';
+    } else {
+      document.getElementById("revYoy").innerHTML='<div class="small faint">'+magicNote+'</div>';
+    }
 
     // lessons
     var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessDone)+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessUp)+'</span> <span class="small muted">upcoming</span></div></div>';
@@ -782,11 +819,21 @@
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.8.1";
+    document.getElementById("versionLabel").textContent="v1.9.0";
   }
 
   // ---------- modes ----------
-  var mode="sample", sb=null, HEALTH_LIVE=false; // whether weight/workouts/tutoring are real (Supabase, signed in) vs sample
+  var mode="sample", sb=null;
+  // "sample" | "loading" | "live" | "error" — GIGS_STATE covers the magic feed, HEALTH_STATE covers
+  // Supabase (weight/workouts/tutoring). Kept as explicit states, not booleans, so an in-flight or
+  // failed fetch is never mislabeled "sample" or silently rendered as a misleading zero.
+  var GIGS_STATE="sample", HEALTH_STATE="sample";
+  function paintSourceBadges(){
+    var mb=document.getElementById("magicBadge"), tb=document.getElementById("mathsBadge"), hb=document.getElementById("healthBadge");
+    if(mb) mb.innerHTML=srcBadge(GIGS_STATE);
+    if(tb) tb.innerHTML=srcBadge(HEALTH_STATE);
+    if(hb) hb.innerHTML=srcBadge(HEALTH_STATE);
+  }
   function setSynced(t){ document.getElementById("syncedLabel").textContent=t; }
   function showView(which){
     document.getElementById("app").style.display = which==="app"?"block":"none";
@@ -824,7 +871,7 @@
 
   async function loadSample(){
     var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
-    HEALTH_LIVE=false; S.gigsLive=false; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
+    HEALTH_STATE="sample"; GIGS_STATE="sample"; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
     document.getElementById("logoutBtn").style.display="none";
     setBanner("sample"); showView("app"); footNote();
     setSynced("sample data"); render();
@@ -837,6 +884,9 @@
     var sess=(await client.auth.getSession()).data.session;
     if(!sess){ showView("login"); setSynced("signed out"); document.getElementById("logoutBtn").style.display="none"; return; }
     document.getElementById("logoutBtn").style.display="inline-block";
+    // Paint "loading" immediately, before either fetch resolves, so the badges never sit on a stale
+    // state (e.g. last session's SAMPLE) while data is genuinely in flight.
+    HEALTH_STATE="loading"; GIGS_STATE="loading"; paintSourceBadges();
     setSynced("syncing...");
     try{
       var r=await Promise.all([
@@ -848,17 +898,21 @@
       var metrics=(r[0].data&&r[0].data[0])||null;
       S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[];
       showView("app"); footNote();
-      if(!metrics && S.workouts.length===0 && S.weights.length===0){ HEALTH_LIVE=false; showEmptyState(); setSynced("connected · empty"); return; }
-      HEALTH_LIVE=true;
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
-      await mergeGigs();
+      await mergeGigs(); // sets GIGS_STATE to "live" or "error"; runs regardless of whether the health tables are empty
+      if(!metrics && S.workouts.length===0 && S.weights.length===0){
+        HEALTH_STATE="live"; // connected to Supabase fine, the tables are just empty
+        showEmptyState(); paintSourceBadges(); setSynced("connected · empty"); return;
+      }
+      HEALTH_STATE="live";
       setSynced("synced "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
       render();
     }catch(e){
-      HEALTH_LIVE=false;
+      HEALTH_STATE="error"; if(GIGS_STATE==="loading") GIGS_STATE="error";
       showView("app");
       document.getElementById("verdictLead").textContent="Could not read the database.";
       document.getElementById("verdictWhy").textContent=String(e.message||e)+" Check the schema is applied and your login email matches the policy.";
+      paintSourceBadges();
       setSynced("error");
     }
   }
