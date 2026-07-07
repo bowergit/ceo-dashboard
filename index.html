@@ -118,10 +118,12 @@
   .weekdots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin:8px 0 2px}
   .wd{min-width:0;min-height:58px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;color:var(--faint);padding:7px 4px 6px}
   .wd .day{font-size:10px;font-weight:700;line-height:1.15}
-  .wd .types{display:flex;flex-direction:column;gap:2px;align-items:center;margin-top:5px;width:100%}
-  .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal}
+  .wd .types{display:flex;flex-direction:column;gap:4px;align-items:center;margin-top:5px;width:100%}
+  /* Each workout gets its own boxed chip so a wrapped two-line title reads as one entry, not two —
+     without the box, a long name spilling onto a second line looked identical to a second workout. */
+  .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal;width:100%;background:rgba(255,255,255,.05);border-radius:4px;padding:2px 4px}
   .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
-  .wd.on .type{color:var(--text);font-weight:700}
+  .wd.on .type{color:var(--text);font-weight:700;background:rgba(0,0,0,.16)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
   .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
