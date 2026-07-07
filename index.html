@@ -290,6 +290,20 @@
       </div>
     </div>
 
+    <div class="sect-title"><h2>Social <span id="socialBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 3-5 social events a month · 1+ a week with Aimee</span></div>
+    <div class="grid g2">
+      <div class="kpi">
+        <div class="lab">Social this month</div>
+        <div class="big" id="socialBig">--</div>
+        <div class="foot" id="socialFoot"></div>
+      </div>
+      <div class="kpi">
+        <div class="lab">Time with Aimee this week</div>
+        <div class="big" id="aimeeBig">--</div>
+        <div class="foot" id="aimeeFoot"></div>
+      </div>
+    </div>
+
     <div class="sect-title"><h2>Trajectory</h2><span class="small faint">total turnover to date, year on year</span></div>
     <div class="grid g2">
       <div class="panel">
@@ -368,11 +382,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), synced daily from Google Calendar into Supabase by a scheduled task (social-aimee-calendar-sync), surfaced as two KPI tiles plus attention-list accountability items. (Reconciled with a concurrent Shabbat-KPI change that landed on main while this was in progress — see AGENT NOTE at top of file.)"},
     {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."},
     {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own \"magic LIVE\"/\"maths SAMPLE\" tag; feed fetch retries once before erroring; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading (was flagging ordinary daily noise as red)"},
     {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"},
-    {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"},
-    {v:"1.7.0",d:"2026-07-05",note:"Live magic gig feed pulled from a published, trimmed sheet CSV (no client names)"}
+    {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -507,6 +521,7 @@
         magic_last_month:4200,magic_last_month_label:"last sample month",gigs_last_month:5,
         magic_same_month_last_year:3100,magic_same_month_last_year_label:"same month last (sample) year",
         booked_this_week:1,booked_this_month:3,booked_month_value:1800,
+        social_events_this_month:4,aimee_events_this_week:1,social_target_min:3,social_target_max:5,aimee_target_week:1,
         ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,
         survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
         magic_upcoming:[
@@ -519,7 +534,7 @@
       workouts:wk, weights:wt, lessons:ls
     };
   }
-  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0};
+  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
   var S={money:{},workouts:[],weights:[],lessons:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
@@ -548,6 +563,20 @@
     return Math.round((kg-prior)*10)/10;
   }
   function dayOfWeekIndex(d){ return d.getDay()+1; } // Sunday=1 .. Saturday=7 (Sunday is day one of the week)
+  function socialPace(count, min, max, now){ // more social events is good; pace-aware the same way workouts are
+    if(count>=max) return {cls:"ok", label:"great"};
+    if(count>=min) return {cls:"ok", label:"good"};
+    var day=now.getDate(), daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+    var expected=Math.ceil(min*day/daysInMonth);
+    if(count>=expected) return {cls:"ok", label:"on track"};
+    if(count>0) return {cls:"watch", label:"behind pace"};
+    return {cls: day<=7?"watch":"behind", label:"none yet"};
+  }
+  function aimeePace(count, target, dayIdx){ // target is just 1/week, so a simple early-week/late-week split reads better than the pro-rated formula
+    if(count>=target) return {cls:"ok", label:"on track"};
+    if(dayIdx<=5) return {cls:"watch", label:"plenty of week left"};
+    return {cls:"behind", label:"get one in"};
+  }
   function workoutPace(c, good, great){
     var day=dayOfWeekIndex(new Date()), expected=Math.ceil(good*day/7);
     if(c>=great) return {cls:"ok", label:"great"};
@@ -662,6 +691,18 @@
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
     if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
     else items.push({kind:"watch",label:"Booked",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
+    var aimeeCount=m.aimee_events_this_week, aimeeTarget=m.aimee_target_week||1;
+    if(aimeeCount!=null){
+      var ap=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
+      if(ap.label==="on track") items.push({kind:"ok",label:"Aimee",msg:aimeeCount+" thing"+(aimeeCount===1?"":"s")+" with Aimee logged this week. On track."});
+      else items.push({kind:ap.cls,label:"Aimee",msg:ap.cls==="behind"?"Nothing with Aimee logged this week — get something in.":"Nothing with Aimee yet this week, but there's still time."});
+    }
+    var socialCount=m.social_events_this_month, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5;
+    if(socialCount!=null){
+      var sp=socialPace(socialCount,socialMin,socialMax,new Date());
+      if(sp.cls==="ok") items.push({kind:"ok",label:"Social",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
+      else items.push({kind:sp.cls,label:"Social",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
+    }
     if(c>=good) items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
     else{
       var pace=workoutPace(c,good,great);
@@ -689,12 +730,12 @@
     if(sc.growth<0) items.push({kind:"behind",label:"Action",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
     else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",msg:"Year-on-year growth is positive but not decisive yet."});
     if(lessUp===0) items.push({kind:"watch",label:"Watch",msg:"No upcoming lessons are logged for the next 30 days."});
-    return items.slice(0,4);
+    return items.slice(0,6);
   }
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.10.0";
+    document.getElementById("versionLabel").textContent="v1.11.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -882,6 +923,28 @@
     }
     else chart.innerHTML="";
 
+    // social & Aimee — synced daily from Google Calendar into the same Supabase metrics row as
+    // health/tutoring, so it shares HEALTH_STATE (live once signed in, sample data otherwise).
+    var socialBadgeEl=document.getElementById("socialBadge"); if(socialBadgeEl) socialBadgeEl.innerHTML=srcBadge(HEALTH_STATE);
+    var socialCountR=m.social_events_this_month, socialMinR=m.social_target_min||3, socialMaxR=m.social_target_max||5;
+    if(socialCountR!=null){
+      var sp2=socialPace(socialCountR,socialMinR,socialMaxR,new Date());
+      document.getElementById("socialBig").innerHTML=pv(socialCountR);
+      document.getElementById("socialFoot").innerHTML='<span class="pill '+sp2.cls+'">'+sp2.label+'</span> target '+socialMinR+'-'+socialMaxR;
+    } else {
+      document.getElementById("socialBig").textContent="--";
+      document.getElementById("socialFoot").textContent=HEALTH_STATE==="loading"?"Loading…":"Not synced yet.";
+    }
+    var aimeeCountR=m.aimee_events_this_week, aimeeTargetR=m.aimee_target_week||1;
+    if(aimeeCountR!=null){
+      var ap2=aimeePace(aimeeCountR,aimeeTargetR,dayOfWeekIndex(new Date()));
+      document.getElementById("aimeeBig").innerHTML=pv(aimeeCountR+" / "+aimeeTargetR);
+      document.getElementById("aimeeFoot").innerHTML='<span class="pill '+ap2.cls+'">'+ap2.label+'</span>';
+    } else {
+      document.getElementById("aimeeBig").textContent="--";
+      document.getElementById("aimeeFoot").textContent=HEALTH_STATE==="loading"?"Loading…":"Not synced yet.";
+    }
+
     // revenue yoy — this is entirely magic-feed derived, so it's just as subject to the loading/error guard
     if(gigsUsable){
       var data=[["this year",m.ytd_current||0,true],["last year",m.ytd_prev1||0,false],["2 yrs ago",m.ytd_prev2||0,false]];
@@ -914,7 +977,9 @@
     document.getElementById("weightDelta").innerHTML="";
     document.getElementById("shabbatStatus").textContent="no data";
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
-    document.getElementById("versionLabel").textContent="v1.10.0";
+    document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent="";
+    document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent="";
+    document.getElementById("versionLabel").textContent="v1.11.0";
   }
 
   // ---------- modes ----------
