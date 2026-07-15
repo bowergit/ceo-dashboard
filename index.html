@@ -385,11 +385,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data. Also fixed Social/Aimee counts going stale when the app isn't open at the scheduled sync time; recommend moving that sync to Apps Script too, same as this one."},
     {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), synced daily from Google Calendar into Supabase by a scheduled task (social-aimee-calendar-sync), surfaced as two KPI tiles plus attention-list accountability items. (Reconciled with a concurrent Shabbat-KPI change that landed on main while this was in progress — see AGENT NOTE at top of file.)"},
     {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."},
     {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own \"magic LIVE\"/\"maths SAMPLE\" tag; feed fetch retries once before erroring; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading (was flagging ordinary daily noise as red)"},
-    {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"},
-    {v:"1.8.0",d:"2026-07-06",note:"Month-based magic KPIs, pace-aware workout status (Sun=day1), trend-based weight colour, eye-icon privacy toggle, live/sample badges per section, changelog"}
+    {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -439,7 +439,7 @@
         var rows=parseCSV(await res.text()), out=[];
         for(var i=1;i<rows.length;i++){ var r=rows[i]; if(!r||r.length<3) continue;
           var ev=parseUKDate(r[2]); if(!ev) continue; // a real event date is required
-          out.push({name:(r[0]||"").trim(), booked:parseUKDate(r[1]), event:ev, fee:parseFee(r[3]), type:(r[4]||"").trim(), starts_at:(r[5]||"").trim(), ends_at:(r[6]||"").trim()});
+          out.push({name:(r[0]||"").trim(), booked:parseUKDate(r[1]), event:ev, fee:parseFee(r[3]), type:(r[4]||"").trim()});
         }
         GIG_CACHE=out; return out;
       }catch(e){ lastErr=e; if(attempt===0) await new Promise(function(res2){ setTimeout(res2,700); }); }
@@ -471,7 +471,7 @@
       magic_same_month_last_year:lastYearValue, magic_same_month_last_year_label:MONTHS[cM]+" "+(cY-1),
       avg_gig:thisMonth.length?thisMonthValue/thisMonth.length:(lastMonth.length?lastMonthValue/lastMonth.length:0),
       ytd_current:ytd(cY), ytd_prev1:ytd(cY-1), ytd_prev2:ytd(cY-2),
-      magic_upcoming:upcoming.slice(0,8).map(function(g){return {date:g.event,event:g.name,amount:g.fee,starts_at:g.starts_at,ends_at:g.ends_at};}),
+      magic_upcoming:upcoming.slice(0,8).map(function(g){return {date:g.event,event:g.name,amount:g.fee};}),
       booked_this_week:booked.filter(function(g){return g.booked>=ws;}).length,
       booked_this_month:bMonth.length, booked_month_value:feeSum(bMonth)
     };
@@ -528,18 +528,27 @@
         ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,
         survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
         magic_upcoming:[
-          {date:fri1,starts_at:atDate(fri1,"14:00"),ends_at:atDate(fri1,"16:00"),event:"Wedding drinks reception",amount:650},
-          {date:sat1,starts_at:atDate(sat1,"23:15"),ends_at:atDate(sat1,"23:55"),event:"Corporate mixer",amount:850},
-          {date:fri3,starts_at:atDate(fri3,"19:00"),ends_at:atDate(fri3,"21:30"),event:"Private birthday party",amount:450},
-          {date:sat5,starts_at:atDate(sat5,"20:00"),ends_at:atDate(sat5,"22:00"),event:"Awards night hosting",amount:1200}
+          {date:fri1,event:"Wedding drinks reception",amount:650},
+          {date:sat1,event:"Corporate mixer",amount:850},
+          {date:fri3,event:"Private birthday party",amount:450},
+          {date:sat5,event:"Awards night hosting",amount:1200}
         ]
       },
+      // Fictional only — timedGigs is separate from magic_upcoming because the real gig feed
+      // (published sheet CSV) never carries clock times, only dates. Real timed gigs come from
+      // the "Booked Gigs" Google Calendar via Supabase in Live mode; see timed_gigs table.
+      timedGigs:[
+        {date:fri1,starts_at:atDate(fri1,"14:00"),ends_at:atDate(fri1,"16:00"),event:"Wedding drinks reception",amount:650},
+        {date:sat1,starts_at:atDate(sat1,"23:15"),ends_at:atDate(sat1,"23:55"),event:"Corporate mixer",amount:850},
+        {date:fri3,starts_at:atDate(fri3,"19:00"),ends_at:atDate(fri3,"21:30"),event:"Private birthday party",amount:450},
+        {date:sat5,starts_at:atDate(sat5,"20:00"),ends_at:atDate(sat5,"22:00"),event:"Awards night hosting",amount:1200}
+      ],
       workouts:wk, weights:wt, lessons:ls
     };
   }
   var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
-  var S={money:{},workouts:[],weights:[],lessons:[],hasData:false,shabbatAudit:null};
+  var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
 
   // ---------- scoring ----------
@@ -589,7 +598,7 @@
     return {cls: day<=2?"watch":"behind", label:"none yet"};
   }
   function timedGigs(){
-    var gigs=Array.isArray(S.money.magic_upcoming)?S.money.magic_upcoming:[];
+    var gigs=Array.isArray(S.timedGigs)?S.timedGigs:[];
     return gigs.map(function(g){
       var start=g.starts_at?new Date(g.starts_at):null;
       var end=g.ends_at?new Date(g.ends_at):null;
@@ -738,7 +747,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.11.0";
+    document.getElementById("versionLabel").textContent="v1.12.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -788,7 +797,7 @@
       {lab:"Gigs this month",big:gigsUsable?String(thisMonthCount):"--",foot:gigsUsable?("avg "+pv(gbp(avgGig))+"/gig"+(pctLastMonth?" · "+pv(pctLastMonth)+" vs last month":"")+srcTag("magic",GIGS_STATE)):magicNote},
       {lab:"Turnover so far this year",pill:gigsUsable?{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"}:null,big:gigsUsable?gbp(m.ytd_current||0):"--",money:true,foot:gigsUsable?("vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"+srcTag("magic",GIGS_STATE)):magicNote},
       {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
-      {lab:"Shabbat protected",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken"))},big:shBig,foot:(sh.summary||"Hebcal London audit")+srcTag("magic",GIGS_STATE)}
+      {lab:"Shabbat protected",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken"))},big:shBig,foot:(sh.summary||"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(thisMonthValue)):"--";
     document.getElementById("magicFoot").innerHTML=gigsUsable?(pv(thisMonthCount)+" gig"+(thisMonthCount===1?"":"s")+" booked in "+(m.magic_this_month_label||"this month")):magicNote;
@@ -982,7 +991,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent="";
-    document.getElementById("versionLabel").textContent="v1.11.0";
+    document.getElementById("versionLabel").textContent="v1.12.0";
   }
 
   // ---------- modes ----------
@@ -1033,7 +1042,7 @@
   }
 
   async function loadSample(){
-    var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.hasData=true;
+    var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.timedGigs=d.timedGigs; S.hasData=true;
     HEALTH_STATE="sample"; GIGS_STATE="sample"; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
     document.getElementById("logoutBtn").style.display="none";
     await loadShabbatAudit();
@@ -1057,10 +1066,11 @@
         client.from("metrics").select("*").order("updated_at",{ascending:false}).limit(1),
         client.from("workouts").select("*").order("date",{ascending:false}).limit(300),
         client.from("weights").select("*").order("date",{ascending:false}).limit(300),
-        client.from("lessons").select("*").order("date",{ascending:false}).limit(300)
+        client.from("lessons").select("*").order("date",{ascending:false}).limit(300),
+        client.from("timed_gigs").select("*").order("starts_at",{ascending:true}).limit(200)
       ]);
       var metrics=(r[0].data&&r[0].data[0])||null;
-      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[];
+      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[]; S.timedGigs=r[4].data||[];
       showView("app"); footNote();
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
       await mergeGigs(); // sets GIGS_STATE to "live" or "error"; runs regardless of whether the health tables are empty
