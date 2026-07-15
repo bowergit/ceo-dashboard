@@ -396,11 +396,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.14.0",d:"2026-07-15",note:"Shabbat/festival panel now only shows actual clashes: gigs that overlap candle-lighting-to-Havdalah protected windows. Clear timed gigs stay out of this panel instead of appearing as noisy audit rows."},
     {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."},
     {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data."},
     {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), surfaced as two KPI tiles plus attention-list accountability items."},
-    {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."},
-    {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own provenance tag; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading"}
+    {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -636,7 +636,10 @@
     var windows=[],open=null;
     (items||[]).slice().sort(function(a,b){return a.date>b.date?1:-1;}).forEach(function(item){
       if(item.category==="candles"&&item.date&&item.date.indexOf("T")>-1){
-        open={start:new Date(item.date),title:item.memo||item.title_orig||"Shabbat / Yom Tov"};
+        var title=item.memo||item.title_orig||"Shabbat / Yom Tov";
+        if(open){
+          if(open.title.indexOf(title)<0) open.title+=" / "+title;
+        }else open={start:new Date(item.date),title:title};
       }else if(item.category==="havdalah"&&open&&item.date&&item.date.indexOf("T")>-1){
         open.end=new Date(item.date);
         if(open.end>open.start) windows.push(open);
@@ -662,7 +665,7 @@
         checked.push({date:iso(g._start),event:g.event||"Gig",start:g._start,end:g._end,amount:g.amount||0,protected:!!hit,window:hit?hit.title:""});
       });
       var violations=checked.filter(function(g){return g.protected;}),score=violations.length===0?1:(violations.length===1?0.5:0);
-      S.shabbatAudit={status:"ok",score:score,violations:violations,checked:checked,windows:windows,source:"Hebcal London",summary:violations.length?violations.length+" protected-time gig"+(violations.length===1?"":"s")+" flagged":"No protected-time gigs flagged"};
+      S.shabbatAudit={status:"ok",score:score,violations:violations,checked:checked,windows:windows,source:"Hebcal London",summary:violations.length?violations.length+" Shabbat/Yom Tov clash"+(violations.length===1?"":"es")+" flagged":"No Shabbat/Yom Tov clashes in "+checked.length+" timed gig"+(checked.length===1?"":"s")};
     }catch(e){
       S.shabbatAudit={status:"error",score:null,violations:[],checked:gigs.map(function(g){return {date:iso(g._start),event:g.event||"Gig",start:g._start,end:g._end,amount:g.amount||0,protected:null,window:""};}),summary:"Could not reach Hebcal for this audit."};
     }
@@ -710,20 +713,20 @@
   }
   function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
   function renderShabbatAudit(){
-    var a=S.shabbatAudit||{status:"loading",score:null,checked:[],summary:"Checking Hebcal."};
+    var a=S.shabbatAudit||{status:"loading",score:null,checked:[],violations:[],summary:"Checking Hebcal."};
     var scoreText=a.score==null?"--":a.score.toFixed(1)+"/1";
     document.getElementById("shabbatStatus").textContent=(a.source||"Hebcal London")+" · "+scoreText;
-    if(a.status==="empty"){
+    if(a.status==="empty"||a.status==="error"){
       document.getElementById("shabbatDetail").innerHTML='<div class="small faint">'+a.summary+'</div>';
       return;
     }
-    var rows=(a.checked||[]).slice().sort(function(x,y){return x.start>y.start?1:-1;}).slice(0,5);
+    var rows=(a.violations||[]).slice().sort(function(x,y){return x.start>y.start?1:-1;}).slice(0,5);
     document.getElementById("shabbatDetail").innerHTML=rows.length?'<div class="shabbat-list">'+rows.map(function(g){
-      var flag=g.protected===true?['behind','Protected']:g.protected===false?['ok','Clear']:['watch','Unchecked'];
+      var flag=['behind','Clash'];
       var time=g.start.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+"-"+g.end.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
       var note=g.protected&&g.window?' <span class="faint">· '+esc(g.window)+'</span>':'';
       return '<div class="shabbat-row"><span class="mono">'+shortDate(iso(g.start))+' '+time+'</span><strong>'+esc(g.event)+note+'</strong><span class="flag '+flag[0]+'">'+flag[1]+'</span></div>';
-    }).join("")+'</div>':'<div class="small faint">'+(a.summary||"No timed gigs to audit yet.")+'</div>';
+    }).join("")+'</div>':'<div class="small faint">'+(a.summary||"No Shabbat/Yom Tov clashes found.")+'</div>';
   }
   function attentionItems(sc,c,good,great,lw,lessUp){
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
@@ -774,7 +777,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.13.0";
+    document.getElementById("versionLabel").textContent="v1.14.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1034,7 +1037,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.13.0";
+    document.getElementById("versionLabel").textContent="v1.14.0";
   }
 
   // ---------- modes ----------
