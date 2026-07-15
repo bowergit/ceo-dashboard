@@ -57,7 +57,7 @@ computes stats client-side — no table stores a pre-aggregated count).
 | Table | Written by | Read by | RLS |
 |---|---|---|---|
 | `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | anon read/write (pre-existing, not tightened) |
-| `workouts` | Apps Script `syncCalendarToSupabase()` (anon key) | `index.html` Live mode | **RLS disabled** — flagged, not fixed. Anyone with the anon key can read/write this table. |
+| `workouts` | Apps Script `syncWorkoutsToSupabase()` / legacy wrapper `syncCalendarToSupabase()` (**service_role** key) | `index.html` Live mode | **RLS disabled** — flagged, not fixed. Anyone with the anon key can read/write this table. |
 | `weights` | iPhone Shortcut, daily 11am (anon key) — see below | `index.html` Live mode | RLS enabled, but has a redundant "anon read = true" policy that defeats its own owner-only policy — same class of gap as `workouts`, flagged, not fixed |
 | `lessons` | Daniel, manually | `index.html` Live mode | owner-read only |
 | `relationship_events` | Apps Script `syncRelationshipEventsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
@@ -108,18 +108,17 @@ reading this repo cold can see what's actually running without opening the Apps 
 
 | Function | Reads | Writes | Trigger | Key used |
 |---|---|---|---|---|
-| `syncCalendarToSupabase()` | "Exercise" Google Calendar (`e29a920c…@group.calendar.google.com`) | `workouts` table | daily, ~00:30 UTC | anon |
-| `syncRelationshipEventsToSupabase()` | "Social" (`family095…@group.calendar.google.com`) + "Aimee" (`c3b2f36d…@group.calendar.google.com`) calendars | `relationship_events` table (wipe + reinsert) | daily, ~06:15 local | service_role |
-| `syncTimedGigsToSupabase()` | "Booked Gigs" Google Calendar (`9a7292c0…@group.calendar.google.com`, itself synced from 17hats) | `timed_gigs` table (wipe + reinsert) | daily, ~06:20 local | service_role |
+| `syncWorkoutsToSupabase()` | "Exercise" Google Calendar (`e29a920c…@group.calendar.google.com`) | `workouts` table | called by `runAllSyncsNow()` | service_role |
+| `syncRelationshipEventsToSupabase()` | "Social" (`family095…@group.calendar.google.com`) + "Aimee" (`c3b2f36d…@group.calendar.google.com`) calendars | `relationship_events` table (wipe + reinsert) | called by `runAllSyncsNow()` | service_role |
+| `syncTimedGigsToSupabase()` | "Booked Gigs" Google Calendar (`9a7292c0…@group.calendar.google.com`, itself synced from 17hats) | `timed_gigs` table (wipe + reinsert) | called by `runAllSyncsNow()` | service_role |
 
-**To force a refresh right now** (don't wait for tonight's triggers): select **`runAllSyncsNow()`**
-in the function dropdown and click Run. This tripped Daniel up twice (2026-07-15) — running
-`setupXTrigger()` or `fixTriggers()` only *installs* tomorrow's trigger, it doesn't sync anything
-today, and it's easy to click Run against the wrong function in the dropdown without noticing.
-`runAllSyncsNow()` runs all three syncs in sequence with a clear header logged before each, so
-there's one unambiguous thing to select when you want data now rather than at the next trigger.
+The daily Apps Script trigger should call **`runAllSyncsNow()`** only. To install or repair that
+trigger, select **`setupDailyRunAllTrigger()`** in the Apps Script function dropdown and click Run
+once. To force a refresh right now, select **`runAllSyncsNow()`** and click Run. That function runs
+all three syncs in sequence with a clear header logged before each, so there's one unambiguous
+thing to select when you want data now rather than at the next trigger.
 
-The `SUPABASE_SERVICE_ROLE_KEY` used by the latter two lives in that Apps Script project's
+The `SUPABASE_SERVICE_ROLE_KEY` used by Apps Script lives in that Apps Script project's
 **Script Properties** (Project Settings → Script Properties) — never hardcoded in the script body,
 never in this repo.
 
