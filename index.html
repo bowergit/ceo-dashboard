@@ -295,16 +295,22 @@
 
     <div class="sect-title"><h2>Social <span id="socialBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 3-5 social events a month · 1+ a week with Aimee</span></div>
     <div class="grid g2">
-      <div class="kpi">
-        <div class="lab">Social this month</div>
+      <details class="income-card" id="socialCard">
+        <summary>
+        <div class="lab">Social <span class="faint" style="font-weight:400">· this month</span></div>
         <div class="big" id="socialBig">--</div>
         <div class="foot" id="socialFoot"></div>
-      </div>
-      <div class="kpi">
-        <div class="lab">Time with Aimee this week</div>
+        </summary>
+        <div class="income-detail" id="socialDetail"></div>
+      </details>
+      <details class="income-card" id="aimeeCard">
+        <summary>
+        <div class="lab">Aimee <span class="faint" style="font-weight:400">· this week</span></div>
         <div class="big" id="aimeeBig">--</div>
         <div class="foot" id="aimeeFoot"></div>
-      </div>
+        </summary>
+        <div class="income-detail" id="aimeeDetail"></div>
+      </details>
     </div>
 
     <div class="sect-title"><h2>Trajectory</h2><span class="small faint">total turnover to date, year on year</span></div>
@@ -385,11 +391,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
-    {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data. Also fixed Social/Aimee counts going stale when the app isn't open at the scheduled sync time; recommend moving that sync to Apps Script too, same as this one."},
-    {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), synced daily from Google Calendar into Supabase by a scheduled task (social-aimee-calendar-sync), surfaced as two KPI tiles plus attention-list accountability items. (Reconciled with a concurrent Shabbat-KPI change that landed on main while this was in progress — see AGENT NOTE at top of file.)"},
+    {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."},
+    {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data."},
+    {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), surfaced as two KPI tiles plus attention-list accountability items."},
     {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."},
-    {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own \"magic LIVE\"/\"maths SAMPLE\" tag; feed fetch retries once before erroring; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading (was flagging ordinary daily noise as red)"},
-    {v:"1.8.1",d:"2026-07-06",note:"Sample mode is fully fictional again — gig feed was leaking real data into Sample; sampleData() now carries its own fake magic/booking numbers"}
+    {v:"1.9.0",d:"2026-07-06",note:"Fixed: a transient gig-feed fetch failure showed £0 mislabeled SAMPLE instead of a clear loading/error state. Data source is now sample/loading/live/error (not a boolean); every KPI carries its own provenance tag; weight-chart dots now colour by week-over-week trend instead of vs the previous single reading"}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -517,6 +523,7 @@
     var future=function(days){ var d=new Date(today); d.setDate(d.getDate()+days); return iso(d); };
     var onWeekday=function(weeks,dow){ var d=weekStart(today); d.setDate(d.getDate()+weeks*7+dow); return iso(d); };
     var atDate=function(date,time){ return date+"T"+time+":00+01:00"; };
+    var monthDay=function(day){ return iso(new Date(today.getFullYear(),today.getMonth(),Math.min(day,28))); };
     var fri1=onWeekday(1,5),sat1=onWeekday(1,6),fri3=onWeekday(3,5),sat5=onWeekday(5,6);
     return {
       money:{
@@ -524,7 +531,7 @@
         magic_last_month:4200,magic_last_month_label:"last sample month",gigs_last_month:5,
         magic_same_month_last_year:3100,magic_same_month_last_year_label:"same month last (sample) year",
         booked_this_week:1,booked_this_month:3,booked_month_value:1800,
-        social_events_this_month:4,aimee_events_this_week:1,social_target_min:3,social_target_max:5,aimee_target_week:1,
+        social_target_min:3,social_target_max:5,aimee_target_week:1,
         ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,
         survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
         magic_upcoming:[
@@ -543,17 +550,32 @@
         {date:fri3,starts_at:atDate(fri3,"19:00"),ends_at:atDate(fri3,"21:30"),event:"Private birthday party",amount:450},
         {date:sat5,starts_at:atDate(sat5,"20:00"),ends_at:atDate(sat5,"22:00"),event:"Awards night hosting",amount:1200}
       ],
+      relationshipEvents:[
+        {date:monthDay(3),title:"Lunch with Jack",source:"social"},
+        {date:monthDay(10),title:"Sam's birthday drinks",source:"social"},
+        {date:monthDay(18),title:"Poker night",source:"social"},
+        {date:monthDay(24),title:"Quiz night",source:"social"},
+        {date:onWeekday(0,2),title:"Dinner date",source:"aimee"}
+      ],
       workouts:wk, weights:wt, lessons:ls
     };
   }
   var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
-  var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],hasData:false,shabbatAudit:null};
+  var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
 
   // ---------- scoring ----------
   function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}).length; }
   function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}); }
+  // Social/Aimee counts are computed client-side from raw event rows, same as workouts — no
+  // pre-aggregated count to go stale. Source events come from relationship_events (Supabase,
+  // synced daily by Apps Script from the Social/Aimee Google Calendars) or sample fictional data.
+  function relEventsInRange(source,startISO,endISOExclusive){
+    return (S.relationshipEvents||[]).filter(function(e){return e.source===source&&e.date>=startISO&&e.date<endISOExclusive;});
+  }
+  function socialEventsThisMonth(){ var n=new Date(); return relEventsInRange("social", iso(new Date(n.getFullYear(),n.getMonth(),1)), iso(new Date(n.getFullYear(),n.getMonth()+1,1))); }
+  function aimeeEventsThisWeek(){ var ws=weekStart(new Date()); return relEventsInRange("aimee", iso(ws), iso(new Date(ws.getFullYear(),ws.getMonth(),ws.getDate()+7))); }
   function weekRangeLabel(wk){ var start=dateObj(wk),end=dateObj(wk); end.setDate(end.getDate()+6); return fmtD(wk)+" to "+fmtD(iso(end)); }
   function latestWeightEntry(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0]; }
   function latestWeight(){ var e=latestWeightEntry(); return e?e.kg:null; }
@@ -703,14 +725,14 @@
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
     if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
     else items.push({kind:"watch",label:"Booked",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
-    var aimeeCount=m.aimee_events_this_week, aimeeTarget=m.aimee_target_week||1;
-    if(aimeeCount!=null){
+    var relUsable=HEALTH_STATE==="live"||HEALTH_STATE==="sample";
+    if(relUsable){
+      var aimeeCount=aimeeEventsThisWeek().length, aimeeTarget=m.aimee_target_week||1;
       var ap=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
       if(ap.label==="on track") items.push({kind:"ok",label:"Aimee",msg:aimeeCount+" thing"+(aimeeCount===1?"":"s")+" with Aimee logged this week. On track."});
       else items.push({kind:ap.cls,label:"Aimee",msg:ap.cls==="behind"?"Nothing with Aimee logged this week — get something in.":"Nothing with Aimee yet this week, but there's still time."});
-    }
-    var socialCount=m.social_events_this_month, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5;
-    if(socialCount!=null){
+
+      var socialCount=socialEventsThisMonth().length, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5;
       var sp=socialPace(socialCount,socialMin,socialMax,new Date());
       if(sp.cls==="ok") items.push({kind:"ok",label:"Social",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
       else items.push({kind:sp.cls,label:"Social",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
@@ -747,7 +769,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.12.0";
+    document.getElementById("versionLabel").textContent="v1.13.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -830,7 +852,11 @@
     var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
       var on=byDay[i], label=on?on:["Rest"];
-      html+='<div class="wd'+(on?" on":"")+(displayWeek!==currentWeek?" selected":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
+      // .selected used to be applied to every day cell whenever viewing a past week, not just
+      // the ones with a workout on them — every day got a gold ring regardless of .on, which
+      // read as "these days are special" when they weren't. .on (gold fill) already carries
+      // that meaning; the section title + "This week" button already say you're viewing history.
+      html+='<div class="wd'+(on?" on":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
     document.getElementById("weekSummary").innerHTML=pv(displayWorkouts.length)+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':pv(good-displayWorkouts.length)+" to hit "+pv(good))+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
@@ -935,26 +961,38 @@
     }
     else chart.innerHTML="";
 
-    // social & Aimee — synced daily from Google Calendar into the same Supabase metrics row as
-    // health/tutoring, so it shares HEALTH_STATE (live once signed in, sample data otherwise).
+    // social & Aimee — event-level detail from relationship_events (Supabase), counts and lists
+    // both computed client-side, the same way workouts are. Shares HEALTH_STATE since it's synced
+    // alongside health/tutoring, live once signed in, sample data otherwise.
     var socialBadgeEl=document.getElementById("socialBadge"); if(socialBadgeEl) socialBadgeEl.innerHTML=srcBadge(HEALTH_STATE);
-    var socialCountR=m.social_events_this_month, socialMinR=m.social_target_min||3, socialMaxR=m.social_target_max||5;
-    if(socialCountR!=null){
-      var sp2=socialPace(socialCountR,socialMinR,socialMaxR,new Date());
-      document.getElementById("socialBig").innerHTML=pv(socialCountR);
+    var relUsableR=HEALTH_STATE==="live"||HEALTH_STATE==="sample";
+    var relNoteR=HEALTH_STATE==="loading"?"Loading…":HEALTH_STATE==="error"?"Could not load — try Refresh.":"Not synced yet.";
+    function eventListHTML(events){
+      return events.length?'<div class="mini-list">'+events.slice().sort(function(a,b){return a.date<b.date?1:-1;}).map(function(e){
+        return '<div class="mini-row"><span class="mono">'+shortDate(e.date)+'</span><strong>'+esc(e.title||"Event")+'</strong></div>';
+      }).join("")+'</div>':'<div class="small faint">No events logged in this period.</div>';
+    }
+    if(relUsableR){
+      var socialEventsR=socialEventsThisMonth(), socialMinR=m.social_target_min||3, socialMaxR=m.social_target_max||5;
+      var sp2=socialPace(socialEventsR.length,socialMinR,socialMaxR,new Date());
+      document.getElementById("socialBig").innerHTML=pv(socialEventsR.length);
       document.getElementById("socialFoot").innerHTML='<span class="pill '+sp2.cls+'">'+sp2.label+'</span> target '+socialMinR+'-'+socialMaxR;
+      document.getElementById("socialDetail").innerHTML=eventListHTML(socialEventsR);
     } else {
       document.getElementById("socialBig").textContent="--";
-      document.getElementById("socialFoot").textContent=HEALTH_STATE==="loading"?"Loading…":"Not synced yet.";
+      document.getElementById("socialFoot").textContent=relNoteR;
+      document.getElementById("socialDetail").innerHTML='<div class="small faint">'+relNoteR+'</div>';
     }
-    var aimeeCountR=m.aimee_events_this_week, aimeeTargetR=m.aimee_target_week||1;
-    if(aimeeCountR!=null){
-      var ap2=aimeePace(aimeeCountR,aimeeTargetR,dayOfWeekIndex(new Date()));
-      document.getElementById("aimeeBig").innerHTML=pv(aimeeCountR+" / "+aimeeTargetR);
+    if(relUsableR){
+      var aimeeEventsR=aimeeEventsThisWeek(), aimeeTargetR=m.aimee_target_week||1;
+      var ap2=aimeePace(aimeeEventsR.length,aimeeTargetR,dayOfWeekIndex(new Date()));
+      document.getElementById("aimeeBig").innerHTML=pv(aimeeEventsR.length+" / "+aimeeTargetR);
       document.getElementById("aimeeFoot").innerHTML='<span class="pill '+ap2.cls+'">'+ap2.label+'</span>';
+      document.getElementById("aimeeDetail").innerHTML=eventListHTML(aimeeEventsR);
     } else {
       document.getElementById("aimeeBig").textContent="--";
-      document.getElementById("aimeeFoot").textContent=HEALTH_STATE==="loading"?"Loading…":"Not synced yet.";
+      document.getElementById("aimeeFoot").textContent=relNoteR;
+      document.getElementById("aimeeDetail").innerHTML='<div class="small faint">'+relNoteR+'</div>';
     }
 
     // revenue yoy — this is entirely magic-feed derived, so it's just as subject to the loading/error guard
@@ -989,9 +1027,9 @@
     document.getElementById("weightDelta").innerHTML="";
     document.getElementById("shabbatStatus").textContent="no data";
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
-    document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent="";
-    document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent="";
-    document.getElementById("versionLabel").textContent="v1.12.0";
+    document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialDetail").innerHTML="";
+    document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeDetail").innerHTML="";
+    document.getElementById("versionLabel").textContent="v1.13.0";
   }
 
   // ---------- modes ----------
@@ -1042,7 +1080,7 @@
   }
 
   async function loadSample(){
-    var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.timedGigs=d.timedGigs; S.hasData=true;
+    var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.timedGigs=d.timedGigs; S.relationshipEvents=d.relationshipEvents; S.hasData=true;
     HEALTH_STATE="sample"; GIGS_STATE="sample"; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
     document.getElementById("logoutBtn").style.display="none";
     await loadShabbatAudit();
@@ -1067,10 +1105,11 @@
         client.from("workouts").select("*").order("date",{ascending:false}).limit(300),
         client.from("weights").select("*").order("date",{ascending:false}).limit(300),
         client.from("lessons").select("*").order("date",{ascending:false}).limit(300),
-        client.from("timed_gigs").select("*").order("starts_at",{ascending:true}).limit(200)
+        client.from("timed_gigs").select("*").order("starts_at",{ascending:true}).limit(200),
+        client.from("relationship_events").select("*").order("date",{ascending:false}).limit(300)
       ]);
       var metrics=(r[0].data&&r[0].data[0])||null;
-      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[]; S.timedGigs=r[4].data||[];
+      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[]; S.timedGigs=r[4].data||[]; S.relationshipEvents=r[5].data||[];
       showView("app"); footNote();
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
       await mergeGigs(); // sets GIGS_STATE to "live" or "error"; runs regardless of whether the health tables are empty
