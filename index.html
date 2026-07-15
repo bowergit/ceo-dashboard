@@ -2,10 +2,15 @@
   AGENT NOTE (Claude Code / Codex / any AI editing this file):
   Daniel runs more than one AI tool against this repo across sessions, sometimes concurrently.
   Before editing: (1) re-read this file fresh from disk, don't trust a cached copy from earlier
-  context; (2) `git fetch origin` and check for commits since you last saw this repo.
-  After editing: (3) bump the version in versionLabel (search for it, two places) AND prepend a
-  new entry to the CHANGELOG array in <script> (keep only the 5 most recent); (4) commit on a
-  branch and merge into main (don't push straight to main) so changes stay revertable as a unit.
+  context; (2) `git fetch origin` and check for commits since you last saw this repo; (3) read
+  ARCHITECTURE.md — this file has none of its own data, everything is fetched live from Google
+  Sheets, Supabase and Google Apps Script, none of which is visible just by reading index.html.
+  After editing: (4) bump the version in versionLabel (search for it, two places) AND prepend a
+  new entry to the CHANGELOG array in <script> (keep only the 5 most recent); (5) commit on a
+  branch and merge into main (don't push straight to main) so changes stay revertable as a unit;
+  (6) if you changed anything about the data pipeline (a Supabase table, an Apps Script function,
+  the gig-feed CSV shape), update ARCHITECTURE.md and scripts/*.gs to match — they go stale the
+  same way code does, and nothing enforces they stay in sync automatically.
 -->
 <!doctype html>
 <html lang="en">
