@@ -112,6 +112,13 @@ reading this repo cold can see what's actually running without opening the Apps 
 | `syncRelationshipEventsToSupabase()` | "Social" (`family095…@group.calendar.google.com`) + "Aimee" (`c3b2f36d…@group.calendar.google.com`) calendars | `relationship_events` table (wipe + reinsert) | daily, ~06:15 local | service_role |
 | `syncTimedGigsToSupabase()` | "Booked Gigs" Google Calendar (`9a7292c0…@group.calendar.google.com`, itself synced from 17hats) | `timed_gigs` table (wipe + reinsert) | daily, ~06:20 local | service_role |
 
+**To force a refresh right now** (don't wait for tonight's triggers): select **`runAllSyncsNow()`**
+in the function dropdown and click Run. This tripped Daniel up twice (2026-07-15) — running
+`setupXTrigger()` or `fixTriggers()` only *installs* tomorrow's trigger, it doesn't sync anything
+today, and it's easy to click Run against the wrong function in the dropdown without noticing.
+`runAllSyncsNow()` runs all three syncs in sequence with a clear header logged before each, so
+there's one unambiguous thing to select when you want data now rather than at the next trigger.
+
 The `SUPABASE_SERVICE_ROLE_KEY` used by the latter two lives in that Apps Script project's
 **Script Properties** (Project Settings → Script Properties) — never hardcoded in the script body,
 never in this repo.
