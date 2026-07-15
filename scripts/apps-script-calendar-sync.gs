@@ -302,6 +302,25 @@ function setupTimedGigsTrigger() {
 }
 
 // ============================================================
+// Manual "run everything now" — select THIS in the function dropdown when you want to force
+// a refresh without waiting for tonight's triggers. Twice now, running setup*Trigger() or
+// fixTriggers() got mistaken for actually running the syncs (they only install a trigger for
+// tomorrow; they don't sync anything today). This removes that ambiguity: one function, runs
+// all three syncs in sequence, logs a clear header before each so the Execution log shows
+// exactly what happened.
+// ============================================================
+
+function runAllSyncsNow() {
+  Logger.log("######## runAllSyncsNow: syncCalendarToSupabase (workouts) ########");
+  syncCalendarToSupabase();
+  Logger.log("######## runAllSyncsNow: syncRelationshipEventsToSupabase (social/aimee) ########");
+  syncRelationshipEventsToSupabase();
+  Logger.log("######## runAllSyncsNow: syncTimedGigsToSupabase (Shabbat audit) ########");
+  syncTimedGigsToSupabase();
+  Logger.log("######## runAllSyncsNow: all three complete ########");
+}
+
+// ============================================================
 // One-time trigger cleanup (used once, 2026-07-15, to clear a stale trigger left over from
 // before this script's main function was renamed from syncCalendarToSheet). Safe to keep.
 // ============================================================
