@@ -92,6 +92,11 @@
   .income-card .chev{color:var(--gold);font-size:13px;transition:.15s}
   .income-card[open] .chev{transform:rotate(180deg)}
   .income-detail{border-top:1px solid var(--line);padding:13px 18px 16px;background:rgba(28,35,45,.5)}
+  .month-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+  .month-nav .label{font-size:12px;color:var(--muted);font-weight:700}
+  .month-nav .buttons{display:flex;gap:6px}
+  .month-nav button{border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:6px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer}
+  .month-nav button:hover{color:var(--text);border-color:rgba(201,162,75,.45)}
   .mini-list{display:grid;gap:8px}
   .mini-row{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
   .mini-row strong{color:var(--text);font-weight:600}
@@ -254,7 +259,7 @@
       <div class="shabbat-head">
         <div>
           <h2>Shabbat and festivals</h2>
-          <div class="small faint">audits timed gigs against London candle-lighting and Havdalah windows</div>
+          <div class="small faint">this month: 8 Shabbat slots, reduced by each slot with a timed-gig clash</div>
         </div>
         <div class="shabbat-status" id="shabbatStatus">checking</div>
       </div>
@@ -396,11 +401,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.15.0",d:"2026-07-15",note:"Maths income now comes from the real tutoring_* Supabase tables instead of metrics.tutoring_monthly; lessons show done/planned monthly totals with Past/Next month controls. Shabbat scoring is now current-month only: 8 protected slots, reduced equally for each slot with a timed-gig clash."},
     {v:"1.14.0",d:"2026-07-15",note:"Shabbat/festival panel now only shows actual clashes: gigs that overlap candle-lighting-to-Havdalah protected windows. Clear timed gigs stay out of this panel instead of appearing as noisy audit rows."},
     {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."},
     {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data."},
-    {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), surfaced as two KPI tiles plus attention-list accountability items."},
-    {v:"1.10.0",d:"2026-07-06",note:"Added Shabbat/Yom Tov protection KPI: timed gigs are checked against Hebcal London candle-lighting and Havdalah windows; date-only gigs are left unaudited rather than guessed."}
+    {v:"1.11.0",d:"2026-07-07",note:"New Social section: events on the \"Social\" calendar this month (target 3-5) and time with Aimee this week (target 1+), surfaced as two KPI tiles plus attention-list accountability items."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -537,7 +542,7 @@
         magic_same_month_last_year:3100,magic_same_month_last_year_label:"same month last (sample) year",
         booked_this_week:1,booked_this_month:3,booked_month_value:1800,
         social_target_min:3,social_target_max:5,aimee_target_week:1,
-        ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,tutoring_monthly:3650,
+        ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,
         survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
         magic_upcoming:[
           {date:fri1,event:"Wedding drinks reception",amount:650},
@@ -565,12 +570,30 @@
       workouts:wk, weights:wt, lessons:ls
     };
   }
-  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,tutoring_monthly:0,social_target_min:3,social_target_max:5,aimee_target_week:1};
+  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
   var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
+  var selectedMagicMonthOffset=0, selectedMathsMonthOffset=0;
 
   // ---------- scoring ----------
+  function monthBounds(offset){
+    var n=new Date(),start=new Date(n.getFullYear(),n.getMonth()+(offset||0),1),end=new Date(n.getFullYear(),n.getMonth()+(offset||0)+1,1);
+    return {start:start,end:end,startISO:iso(start),endISO:iso(end),label:MONTHS[start.getMonth()]+" "+start.getFullYear()};
+  }
+  function monthNavHTML(kind,bounds){
+    return '<div class="month-nav" data-kind="'+kind+'"><span class="label">'+bounds.label+'</span><span class="buttons"><button type="button" data-month="'+kind+'" data-dir="-1">Past</button><button type="button" data-month="'+kind+'" data-dir="1">Next</button></span></div>';
+  }
+  function attachMonthNav(){
+    document.querySelectorAll("[data-month]").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var kind=btn.getAttribute("data-month"),dir=parseInt(btn.getAttribute("data-dir"),10)||0;
+        if(kind==="magic") selectedMagicMonthOffset+=dir;
+        if(kind==="maths") selectedMathsMonthOffset+=dir;
+        render();
+      });
+    });
+  }
   function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}).length; }
   function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}); }
   // Social/Aimee counts are computed client-side from raw event rows, same as workouts — no
@@ -581,6 +604,39 @@
   }
   function socialEventsThisMonth(){ var n=new Date(); return relEventsInRange("social", iso(new Date(n.getFullYear(),n.getMonth(),1)), iso(new Date(n.getFullYear(),n.getMonth()+1,1))); }
   function aimeeEventsThisWeek(){ var ws=weekStart(new Date()); return relEventsInRange("aimee", iso(ws), iso(new Date(ws.getFullYear(),ws.getMonth(),ws.getDate()+7))); }
+  function lessonsInMonth(offset){ var b=monthBounds(offset||0); return (S.lessons||[]).filter(function(l){return l.date>=b.startISO&&l.date<b.endISO;}); }
+  function lessonMonthStats(offset){
+    var rows=lessonsInMonth(offset||0),done=rows.filter(function(l){return l.status==="done";}),planned=rows.filter(function(l){return l.status==="upcoming";});
+    var billable=rows.filter(function(l){return !l.is_complimentary;});
+    var total=billable.reduce(function(sum,l){return sum+(Number(l.amount)||0);},0);
+    return {rows:rows,done:done,planned:planned,total:total,bounds:monthBounds(offset||0)};
+  }
+  function rateForLesson(studentId,date,rateHistory){
+    var rows=(rateHistory||[]).filter(function(r){return r.student_id===studentId&&r.effective_from_date<=date;})
+      .sort(function(a,b){return a.effective_from_date<b.effective_from_date?1:-1;});
+    return rows.length?Number(rows[0].rate)||0:90;
+  }
+  function normaliseTutoringLessons(lessonRows,students,rateHistory){
+    var names={}; (students||[]).forEach(function(s){names[s.id]=s.name;});
+    return (lessonRows||[]).map(function(l){
+      var date=l.lesson_date, rawStatus=String(l.status||"").toLowerCase();
+      var amount=l.is_complimentary?0:(l.rate_charged!=null?Number(l.rate_charged):rateForLesson(l.student_id,date,rateHistory));
+      return {
+        id:l.id,
+        date:date,
+        status:rawStatus==="completed"?"done":rawStatus==="scheduled"?"upcoming":rawStatus,
+        student:names[l.student_id]||"Lesson",
+        amount:amount,
+        is_complimentary:!!l.is_complimentary
+      };
+    });
+  }
+  function magicMonthStats(offset){
+    var b=monthBounds(offset||0),rows=(S.gigs||[]).filter(function(g){return g.event>=b.startISO&&g.event<b.endISO;});
+    var prior=monthBounds((offset||0)-1),priorRows=(S.gigs||[]).filter(function(g){return g.event>=prior.startISO&&g.event<prior.endISO;});
+    var total=rows.reduce(function(sum,g){return sum+(g.fee||0);},0),priorTotal=priorRows.reduce(function(sum,g){return sum+(g.fee||0);},0);
+    return {rows:rows,total:total,count:rows.length,avg:rows.length?total/rows.length:0,priorTotal:priorTotal,bounds:b,priorBounds:prior};
+  }
   function weekRangeLabel(wk){ var start=dateObj(wk),end=dateObj(wk); end.setDate(end.getDate()+6); return fmtD(wk)+" to "+fmtD(iso(end)); }
   function latestWeightEntry(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0]; }
   function latestWeight(){ var e=latestWeightEntry(); return e?e.kg:null; }
@@ -649,30 +705,44 @@
     return windows;
   }
   function overlaps(aStart,aEnd,bStart,bEnd){ return aEnd>bStart&&aStart<bEnd; }
+  function protectedSlotsForMonth(windows,bounds){
+    var slots=[],monthStart=bounds.start,monthEnd=bounds.end;
+    (windows||[]).forEach(function(w,idx){
+      if(!overlaps(w.start,w.end,monthStart,monthEnd)) return;
+      var midnight=new Date(w.start); midnight.setHours(24,0,0,0);
+      var eveEnd=midnight<w.end?midnight:w.end;
+      if(eveEnd>w.start&&overlaps(w.start,eveEnd,monthStart,monthEnd)) slots.push({id:idx+":eve",start:w.start,end:eveEnd,title:w.title+" evening"});
+      var dayStart=midnight>w.start?midnight:w.start;
+      if(w.end>dayStart&&overlaps(dayStart,w.end,monthStart,monthEnd)) slots.push({id:idx+":day",start:dayStart,end:w.end,title:w.title+" day"});
+    });
+    return slots;
+  }
   async function loadShabbatAudit(){
-    var gigs=timedGigs();
-    if(!gigs.length){ S.shabbatAudit={status:"empty",score:null,violations:[],checked:[],summary:"No timed gigs to audit yet."}; return; }
-    var min=new Date(Math.min.apply(null,gigs.map(function(g){return g._start.getTime();})));
-    var max=new Date(Math.max.apply(null,gigs.map(function(g){return g._end.getTime();})));
-    min.setDate(min.getDate()-2); max.setDate(max.getDate()+3);
+    var allGigs=timedGigs(),bounds=monthBounds(0);
+    if(!allGigs.length){ S.shabbatAudit={status:"empty",score:null,violations:[],checked:[],summary:"No timed gigs to audit yet."}; return; }
+    var gigs=allGigs.filter(function(g){return overlaps(g._start,g._end,bounds.start,bounds.end);});
+    var min=new Date(bounds.start); min.setDate(min.getDate()-3);
+    var max=new Date(bounds.end); max.setDate(max.getDate()+3);
     var url="https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&ss=on&c=on&M=on&geo=geoname&geonameid=2643743&start="+iso(min)+"&end="+iso(max);
     try{
       var res=await fetch(url);
       if(!res.ok) throw new Error("Hebcal "+res.status);
-      var data=await res.json(),windows=buildProtectedWindows(data.items),checked=[];
+      var data=await res.json(),windows=buildProtectedWindows(data.items),slots=protectedSlotsForMonth(windows,bounds),checked=[];
       gigs.forEach(function(g){
-        var hit=windows.find(function(w){return overlaps(g._start,g._end,w.start,w.end);});
-        checked.push({date:iso(g._start),event:g.event||"Gig",start:g._start,end:g._end,amount:g.amount||0,protected:!!hit,window:hit?hit.title:""});
+        var hit=slots.find(function(s){return overlaps(g._start,g._end,s.start,s.end);});
+        checked.push({date:iso(g._start),event:g.event||"Gig",start:g._start,end:g._end,amount:g.amount||0,protected:!!hit,window:hit?hit.title:"",slot:hit?hit.id:""});
       });
-      var violations=checked.filter(function(g){return g.protected;}),score=violations.length===0?1:(violations.length===1?0.5:0);
-      S.shabbatAudit={status:"ok",score:score,violations:violations,checked:checked,windows:windows,source:"Hebcal London",summary:violations.length?violations.length+" Shabbat/Yom Tov clash"+(violations.length===1?"":"es")+" flagged":"No Shabbat/Yom Tov clashes in "+checked.length+" timed gig"+(checked.length===1?"":"s")};
+      var violations=checked.filter(function(g){return g.protected;}),broken={};
+      violations.forEach(function(g){ if(g.slot) broken[g.slot]=true; });
+      var brokenSlots=Object.keys(broken).length,slotsTotal=8,keptSlots=Math.max(0,slotsTotal-brokenSlots),score=keptSlots/slotsTotal;
+      S.shabbatAudit={status:"ok",score:score,violations:violations,checked:checked,windows:windows,slotsTotal:slotsTotal,brokenSlots:brokenSlots,keptSlots:keptSlots,source:"Hebcal London",summary:brokenSlots?brokenSlots+" of "+slotsTotal+" Shabbat slots broken this month":"No Shabbat/Yom Tov clashes this month"};
     }catch(e){
       S.shabbatAudit={status:"error",score:null,violations:[],checked:gigs.map(function(g){return {date:iso(g._start),event:g.event||"Gig",start:g._start,end:g._end,amount:g.amount||0,protected:null,window:""};}),summary:"Could not reach Hebcal for this audit."};
     }
   }
   function scores(){
     var m=S.money;
-    var income=(m.magic_last_month||0)+(m.tutoring_monthly||0);
+    var income=(m.magic_this_month||0)+lessonMonthStats(0).total;
     var full=m.full_lifestyle_gross||7778, surv=m.survival_gross||5764;
     var money=clamp(Math.round(income/full*8.5),0,10);
     if(income<surv) money=clamp(Math.round(income/surv*6),0,10);
@@ -701,7 +771,7 @@
     else if(o>=5) lead="Off the pace. The engine needs more heat.";
     else lead="Behind. The numbers are not where they need to be.";
     var p=[];
-    p.push("Last month you earned "+pv(gbp(sc.income))+" across magic and tutoring, against a full lifestyle line of "+pv(gbp(S.money.full_lifestyle_gross||7778))+".");
+    p.push("This month you have "+pv(gbp(sc.income))+" across booked magic and tutoring, against a full lifestyle line of "+pv(gbp(S.money.full_lifestyle_gross||7778))+".");
     if(sc.growth>0.1) p.push("Turnover is up "+pv(Math.round(sc.growth*100)+"%")+" on this point last year.");
     if(sc.discipline==null) p.push("Log workouts and weight in the database so the discipline score reads true.");
     else{
@@ -714,7 +784,7 @@
   function statusColor(v){ return v>=7?"var(--ok)":v>=5?"var(--watch)":"var(--behind)"; }
   function renderShabbatAudit(){
     var a=S.shabbatAudit||{status:"loading",score:null,checked:[],violations:[],summary:"Checking Hebcal."};
-    var scoreText=a.score==null?"--":a.score.toFixed(1)+"/1";
+    var scoreText=a.slotsTotal?((a.keptSlots||0)+"/"+a.slotsTotal):(a.score==null?"--":a.score.toFixed(1)+"/1");
     document.getElementById("shabbatStatus").textContent=(a.source||"Hebcal London")+" · "+scoreText;
     if(a.status==="empty"||a.status==="error"){
       document.getElementById("shabbatDetail").innerHTML='<div class="small faint">'+a.summary+'</div>';
@@ -777,7 +847,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.14.0";
+    document.getElementById("versionLabel").textContent="v1.15.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -800,8 +870,8 @@
     var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
     var pace=workoutPace(c,good,great), wkClass=pace.cls, wkLabel=pace.label;
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
-    var lessDone=S.lessons.filter(function(l){return l.status==="done"&&within(l.date,-30);}).length;
-    var lessUp=S.lessons.filter(function(l){return l.status==="upcoming"&&within(l.date,30,true);}).length;
+    var mathsCurrent=lessonMonthStats(0), mathsDisplay=lessonMonthStats(selectedMathsMonthOffset);
+    var lessDone=mathsCurrent.done.length, lessUp=mathsCurrent.planned.length;
     document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,great,lw,lessUp).map(function(item){
       return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
@@ -814,35 +884,44 @@
     // never render as a bare, misleading "£0".
     var gigsUsable = (GIGS_STATE==="live"||GIGS_STATE==="sample");
     var magicNote = GIGS_STATE==="loading"?"Loading the gig feed…":GIGS_STATE==="error"?"Gig feed unavailable — try Refresh.":"";
+    var magicDisplay=(S.gigs&&S.gigs.length)?magicMonthStats(selectedMagicMonthOffset):null;
     var thisMonthValue=gigsUsable?(m.magic_this_month||0):0, thisMonthCount=gigsUsable?(m.magic_this_month_count||0):0;
     var lastMonthValue=gigsUsable?(m.magic_last_month||0):0, lastYearValue=gigsUsable?(m.magic_same_month_last_year||0):0;
     var avgGig=gigsUsable?(m.avg_gig!=null?m.avg_gig:(thisMonthCount>0?thisMonthValue/thisMonthCount:0)):0;
     function pctVs(curr,prior){ if(!prior) return null; var p=Math.round((curr/prior-1)*100); return (p>=0?"+":"")+p+"%"; }
     var pctLastMonth=gigsUsable?pctVs(thisMonthValue,lastMonthValue):null, pctLastYear=gigsUsable?pctVs(thisMonthValue,lastYearValue):null;
-    var combinedThisMonth=thisMonthValue+(m.tutoring_monthly||0);
+    var combinedThisMonth=thisMonthValue+mathsCurrent.total;
     var sh=S.shabbatAudit||{},shClass=sh.score==null?"watch":sh.score>=1?"ok":sh.score>=0.5?"watch":"behind";
-    var shBig=sh.score==null?"--":sh.score.toFixed(1)+" / 1";
+    var shBig=sh.slotsTotal?((sh.keptSlots||0)+" / "+sh.slotsTotal):(sh.score==null?"--":sh.score.toFixed(1)+" / 1");
     var kpis=[
       {lab:"Turnover this month",big:gigsUsable?gbp(combinedThisMonth):"--",money:true,foot:gigsUsable?("magic (booked) + maths, "+(m.magic_this_month_label||"this month")+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
       {lab:"Gigs this month",big:gigsUsable?String(thisMonthCount):"--",foot:gigsUsable?("avg "+pv(gbp(avgGig))+"/gig"+(pctLastMonth?" · "+pv(pctLastMonth)+" vs last month":"")+srcTag("magic",GIGS_STATE)):magicNote},
+      {lab:"Lessons this month",big:String(mathsCurrent.rows.length),foot:pv(mathsCurrent.done.length)+" done · "+pv(mathsCurrent.planned.length)+" planned · "+pv(gbp(mathsCurrent.total))+srcTag("maths",HEALTH_STATE)},
       {lab:"Turnover so far this year",pill:gigsUsable?{c:sc.growth>=0.1?"ok":sc.growth>=0?"watch":"behind",t:(sc.growth>0?"+":"")+Math.round(sc.growth*100)+"% YoY"}:null,big:gigsUsable?gbp(m.ytd_current||0):"--",money:true,foot:gigsUsable?("vs "+pv(gbp(m.ytd_prev1||0))+" this point last year"+srcTag("magic",GIGS_STATE)):magicNote},
       {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
       {lab:"Shabbat protected",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken"))},big:shBig,foot:(sh.summary||"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
-    document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(thisMonthValue)):"--";
-    document.getElementById("magicFoot").innerHTML=gigsUsable?(pv(thisMonthCount)+" gig"+(thisMonthCount===1?"":"s")+" booked in "+(m.magic_this_month_label||"this month")):magicNote;
-    document.getElementById("mathsIncome").innerHTML=pv(gbp(m.tutoring_monthly||0));
-    document.getElementById("mathsFoot").innerHTML=pv(lessDone)+" lesson"+(lessDone===1?"":"s")+" done in the last 30 days";
+    var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
+    document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(magicCardValue)):"--";
+    document.getElementById("magicFoot").innerHTML=gigsUsable?(pv(magicCardCount)+" gig"+(magicCardCount===1?"":"s")+" booked in "+magicCardLabel):magicNote;
+    document.getElementById("mathsIncome").innerHTML=pv(gbp(mathsDisplay.total));
+    document.getElementById("mathsFoot").innerHTML=pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned in "+mathsDisplay.bounds.label;
     var magicUpcoming=(gigsUsable&&Array.isArray(m.magic_upcoming))?m.magic_upcoming:[];
     if(gigsUsable){
       var cmpLines=[];
-      if(lastMonthValue>0) cmpLines.push((pctLastMonth?pv(pctLastMonth)+" ":"")+"vs "+pv(gbp(lastMonthValue))+" in "+(m.magic_last_month_label||"last month"));
-      if(lastYearValue>0) cmpLines.push((pctLastYear?pv(pctLastYear)+" ":"")+"vs "+pv(gbp(lastYearValue))+" in "+(m.magic_same_month_last_year_label||"last year"));
+      if(magicDisplay){
+        var pctPrior=magicDisplay.priorTotal?pctVs(magicDisplay.total,magicDisplay.priorTotal):null;
+        if(magicDisplay.priorTotal>0) cmpLines.push((pctPrior?pv(pctPrior)+" ":"")+"vs "+pv(gbp(magicDisplay.priorTotal))+" in "+magicDisplay.priorBounds.label);
+      }else{
+        if(lastMonthValue>0) cmpLines.push((pctLastMonth?pv(pctLastMonth)+" ":"")+"vs "+pv(gbp(lastMonthValue))+" in "+(m.magic_last_month_label||"last month"));
+        if(lastYearValue>0) cmpLines.push((pctLastYear?pv(pctLastYear)+" ":"")+"vs "+pv(gbp(lastYearValue))+" in "+(m.magic_same_month_last_year_label||"last year"));
+      }
       var cmpBlock=cmpLines.length?'<div class="small muted" style="margin-bottom:6px">'+cmpLines.join(' · ')+'</div>':'';
       var bookStat='<div class="small muted" style="margin-bottom:10px">'+pv(m.booked_this_week||0)+' booked this week · '+pv(m.booked_this_month||0)+' this month (by date booked)</div>';
-      document.getElementById("magicDetail").innerHTML=cmpBlock+bookStat+(magicUpcoming.length?'<div class="mini-list">'+magicUpcoming.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,5).map(function(g){
+      var displayMagicRows=magicDisplay?magicDisplay.rows.map(function(g){return {date:g.event,event:g.name,amount:g.fee};}):magicUpcoming;
+      document.getElementById("magicDetail").innerHTML=monthNavHTML("magic",magicDisplay?magicDisplay.bounds:monthBounds(0))+cmpBlock+bookStat+(displayMagicRows.length?'<div class="mini-list">'+displayMagicRows.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,6).map(function(g){
         return '<div class="mini-row"><span class="mono">'+shortDate(g.date)+'</span><strong>'+esc(g.event||"Gig")+'</strong><span class="amount">'+pv(gbp(g.amount||0))+'</span></div>';
-      }).join("")+'</div>':'<div class="small faint">No upcoming gigs in the feed yet.</div>');
+      }).join("")+'</div>':'<div class="small faint">No gigs in this month.</div>');
     } else {
       document.getElementById("magicDetail").innerHTML='<div class="small faint">'+magicNote+'</div>';
     }
@@ -1017,9 +1096,10 @@
     }
 
     // lessons
-    var head='<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessDone)+'</span> <span class="small muted">done · 30d</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(lessUp)+'</span> <span class="small muted">upcoming</span></div></div>';
-    var rows=S.lessons.slice().sort(function(a,b){return a.date<b.date?1:-1;}).slice(0,6);
-    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<div class="mini-list">'+rows.map(function(l){return '<div class="mini-row"><span class="mono">'+shortDate(l.date)+'</span><strong>'+esc(l.student||"Lesson")+'</strong><span class="amount">'+(l.amount!=null?pv(gbp(l.amount)):'<span class="tag '+(l.status==="done"?"done":"up")+'">'+l.status+'</span>')+'</span></div>';}).join("")+'</div>' : '<div class="small faint">No lessons in the database.</div>');
+    var head=monthNavHTML("maths",mathsDisplay.bounds)+'<div style="display:flex;gap:18px;margin:4px 0 8px"><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(mathsDisplay.done.length)+'</span> <span class="small muted">done</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(mathsDisplay.planned.length)+'</span> <span class="small muted">planned</span></div><div><span class="mono" style="font-size:22px;font-weight:600">'+pv(gbp(mathsDisplay.total))+'</span> <span class="small muted">projected</span></div></div>';
+    var rows=mathsDisplay.rows.slice().sort(function(a,b){return a.date>b.date?1:-1;}).slice(0,8);
+    document.getElementById("lessonsWrap").innerHTML=head+(rows.length? '<div class="mini-list">'+rows.map(function(l){return '<div class="mini-row"><span class="mono">'+shortDate(l.date)+'</span><strong>'+esc(l.student||"Lesson")+'</strong><span class="amount">'+pv(gbp(l.amount||0))+' <span class="tag '+(l.status==="done"?"done":"up")+'">'+(l.status==="done"?"done":"planned")+'</span></span></div>';}).join("")+'</div>' : '<div class="small faint">No lessons in this month.</div>');
+    attachMonthNav();
   }
 
   function showEmptyState(){
@@ -1037,7 +1117,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.14.0";
+    document.getElementById("versionLabel").textContent="v1.15.0";
   }
 
   // ---------- modes ----------
@@ -1112,17 +1192,19 @@
         client.from("metrics").select("*").order("updated_at",{ascending:false}).limit(1),
         client.from("workouts").select("*").order("date",{ascending:false}).limit(300),
         client.from("weights").select("*").order("date",{ascending:false}).limit(300),
-        client.from("lessons").select("*").order("date",{ascending:false}).limit(300),
+        client.from("tutoring_lessons").select("*").order("lesson_date",{ascending:false}).limit(600),
         client.from("timed_gigs").select("*").order("starts_at",{ascending:true}).limit(200),
-        client.from("relationship_events").select("*").order("date",{ascending:false}).limit(300)
+        client.from("relationship_events").select("*").order("date",{ascending:false}).limit(300),
+        client.from("tutoring_students").select("id,name,active"),
+        client.from("tutoring_rate_history").select("*")
       ]);
       var metrics=(r[0].data&&r[0].data[0])||null;
-      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=r[3].data||[]; S.timedGigs=r[4].data||[]; S.relationshipEvents=r[5].data||[];
+      S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=normaliseTutoringLessons(r[3].data||[],r[6].data||[],r[7].data||[]); S.timedGigs=r[4].data||[]; S.relationshipEvents=r[5].data||[];
       showView("app"); footNote();
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
       await mergeGigs(); // sets GIGS_STATE to "live" or "error"; runs regardless of whether the health tables are empty
       await loadShabbatAudit();
-      if(!metrics && S.workouts.length===0 && S.weights.length===0){
+      if(!metrics && S.workouts.length===0 && S.weights.length===0 && S.lessons.length===0){
         HEALTH_STATE="live"; // connected to Supabase fine, the tables are just empty
         showEmptyState(); paintSourceBadges(); setSynced("connected · empty"); return;
       }

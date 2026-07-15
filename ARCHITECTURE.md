@@ -59,7 +59,7 @@ computes stats client-side — no table stores a pre-aggregated count).
 | `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | anon read/write (pre-existing, not tightened) |
 | `workouts` | Apps Script `syncWorkoutsToSupabase()` / legacy wrapper `syncCalendarToSupabase()` (**service_role** key) | `index.html` Live mode | **RLS disabled** — flagged, not fixed. Anyone with the anon key can read/write this table. |
 | `weights` | iPhone Shortcut, daily 11am (anon key) — see below | `index.html` Live mode | RLS enabled, but has a redundant "anon read = true" policy that defeats its own owner-only policy — same class of gap as `workouts`, flagged, not fixed |
-| `lessons` | Daniel, manually | `index.html` Live mode | owner-read only |
+| `tutoring_lessons`, `tutoring_students`, `tutoring_rate_history` | [`bowergit/tutoring`](https://github.com/bowergit/tutoring) app | `index.html` Live mode | public read with anon key as of 2026-07-15 |
 | `relationship_events` | Apps Script `syncRelationshipEventsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
 | `timed_gigs` | Apps Script `syncTimedGigsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
 
@@ -68,6 +68,12 @@ Supabase **service_role** key, which bypasses RLS entirely and runs only inside 
 (server-side, never exposed to a browser), so the table itself needs no public write policy at
 all — tighter than the anon-key pattern `workouts`/`weights` use. New tables should follow this
 pattern, not the older one.
+
+Maths/tutoring data is not sourced from the old `lessons` table. The live dashboard reads the
+same tables used by [`bowergit/tutoring`](https://github.com/bowergit/tutoring): lesson rows from
+`tutoring_lessons`, student names from `tutoring_students`, and fallback/effective prices from
+`tutoring_rate_history` when a lesson row has no `rate_charged`. The CEO dashboard computes
+monthly done/planned counts and projected value client-side from those raw rows.
 
 ### iPhone Shortcut — weight data
 
