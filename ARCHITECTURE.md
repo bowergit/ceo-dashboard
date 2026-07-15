@@ -75,6 +75,11 @@ same tables used by [`bowergit/tutoring`](https://github.com/bowergit/tutoring):
 `tutoring_rate_history` when a lesson row has no `rate_charged`. The CEO dashboard computes
 monthly done/planned counts and projected value client-side from those raw rows.
 
+Revenue trajectory is also computed client-side. Magic projects current-year actuals forward using
+weighted months, with November and December deliberately heavier for the Christmas season. Maths
+projects each visible student as `rate * 40 lessons/year`, scaled from the student's first logged or
+scheduled lesson in the year, so future-starting students only count from when they appear.
+
 ### iPhone Shortcut — weight data
 
 Runs once daily at 11am via an iOS **Personal Automation** ("Run Immediately", not a manual tap).
