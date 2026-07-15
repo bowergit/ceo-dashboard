@@ -58,7 +58,7 @@ computes stats client-side — no table stores a pre-aggregated count).
 |---|---|---|---|
 | `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | anon read/write (pre-existing, not tightened) |
 | `workouts` | Apps Script `syncCalendarToSupabase()` (anon key) | `index.html` Live mode | **RLS disabled** — flagged, not fixed. Anyone with the anon key can read/write this table. |
-| `weights` | iPhone Shortcut — **see placeholder below, needs Daniel's detail** | `index.html` Live mode | RLS enabled, but has a redundant "anon read = true" policy that defeats its own owner-only policy — same class of gap as `workouts`, flagged, not fixed |
+| `weights` | iPhone Shortcut, daily 11am (anon key) — see below | `index.html` Live mode | RLS enabled, but has a redundant "anon read = true" policy that defeats its own owner-only policy — same class of gap as `workouts`, flagged, not fixed |
 | `lessons` | Daniel, manually | `index.html` Live mode | owner-read only |
 | `relationship_events` | Apps Script `syncRelationshipEventsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
 | `timed_gigs` | Apps Script `syncTimedGigsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
@@ -71,10 +71,32 @@ pattern, not the older one.
 
 ### iPhone Shortcut — weight data
 
-> **Placeholder — Daniel to fill in.** Known so far: a Shortcut on Daniel's iPhone sends weight
-> readings into the `weights` Supabase table. Not yet documented: what triggers it (manual run vs.
-> an automation), exactly what fields it sends, and how it authenticates to Supabase (presumably
-> the anon key, matching the table's current RLS, but unconfirmed).
+Runs once daily at 11am via an iOS **Personal Automation** ("Run Immediately", not a manual tap).
+Uses the third-party **Health Auto Export** app to pull the last 7 days of body-weight data out of
+Apple Health as JSON. The Shortcut parses that JSON, loops over each record, extracts `date` +
+`qty` (kg), trims the date to `YYYY-MM-DD`, and sends each reading as its own request:
+
+```
+POST {SUPABASE_URL}/rest/v1/weights?on_conflict=date
+Headers:
+  apikey: <supabase publishable/anon key>
+  Authorization: Bearer <supabase publishable/anon key>
+  Prefer: resolution=merge-duplicates,return=representation
+Body: {"date": "YYYY-MM-DD", "kg": <number>}
+```
+
+- **Auth:** the Supabase publishable (anon) key — the same one that's already public in
+  `index.html`, nothing more sensitive than that.
+- **Upsert, not insert:** `on_conflict=date` + `resolution=merge-duplicates` means re-running
+  never creates a duplicate row for a date already logged; it overwrites that date's value.
+  This depends on a **unique index on `weights.date`** (`weights_date_unique`, confirmed present
+  via `pg_indexes` — it's a standalone `CREATE UNIQUE INDEX`, not a formal table constraint, so
+  it won't show up in a `pg_constraint`/`\d weights` listing, only in `pg_indexes`). Without that
+  index the upsert would fail outright — Postgres requires a matching unique index for
+  `ON CONFLICT` to target. Don't drop or rename it without updating the Shortcut.
+- **Self-healing by design:** always re-exports the trailing 7 days, not just "today" — so a
+  missed automation run, a phone that was off, or a gap in Health data backfills automatically
+  on the next successful run, no manual catch-up needed.
 
 ### Google Apps Script — "Calendar to sheet" project
 
