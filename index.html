@@ -404,11 +404,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."},
     {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."},
     {v:"1.15.0",d:"2026-07-15",note:"Maths income now comes from the real tutoring_* Supabase tables instead of metrics.tutoring_monthly; lessons show done/planned monthly totals with Past/Next month controls. Shabbat scoring is now current-month only: 8 protected slots, reduced equally for each slot with a timed-gig clash."},
     {v:"1.14.0",d:"2026-07-15",note:"Shabbat/festival panel now only shows actual clashes: gigs that overlap candle-lighting-to-Havdalah protected windows. Clear timed gigs stay out of this panel instead of appearing as noisy audit rows."},
-    {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."},
-    {v:"1.12.0",d:"2026-07-15",note:"Shabbat audit now sourced from a new timed_gigs Supabase table (real start/end times from the \"Booked Gigs\" Google Calendar, synced via Apps Script using the service_role key — no public write access on this table). It was permanently stuck on \"checking\" because it read from magic_upcoming, which only ever carries a date, never a time — that field never had real timing data."}
+    {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -841,7 +841,7 @@
     }
     var rows=(a.violations||[]).slice().sort(function(x,y){return x.start>y.start?1:-1;}).slice(0,5);
     document.getElementById("shabbatDetail").innerHTML=rows.length?'<div class="shabbat-list">'+rows.map(function(g){
-      var flag=['behind','Clash'];
+      var flag=['behind','Broken'];
       var time=g.start.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})+"-"+g.end.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
       var note=g.protected&&g.window?' <span class="faint">· '+esc(g.window)+'</span>':'';
       return '<div class="shabbat-row"><span class="mono">'+shortDate(iso(g.start))+' '+time+'</span><strong>'+esc(g.event)+note+'</strong><span class="flag '+flag[0]+'">'+flag[1]+'</span></div>';
@@ -896,7 +896,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.16.0";
+    document.getElementById("versionLabel").textContent="v1.16.1";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1172,7 +1172,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.16.0";
+    document.getElementById("versionLabel").textContent="v1.16.1";
   }
 
   // ---------- modes ----------
@@ -1186,6 +1186,17 @@
     if(mb) mb.innerHTML=srcBadge(GIGS_STATE);
     if(tb) tb.innerHTML=srcBadge(HEALTH_STATE);
     if(hb) hb.innerHTML=srcBadge(HEALTH_STATE);
+  }
+  function syncLabelFromDate(value){
+    var d=value?new Date(value):new Date();
+    if(isNaN(d)) d=new Date();
+    var now=new Date(),dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    var thatStart=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    var days=Math.round((dayStart-thatStart)/86400000);
+    var time=d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+    if(days===0) return "synced "+time;
+    if(days===1) return "synced yesterday "+time;
+    return "synced "+d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})+" "+time;
   }
   function setSynced(t){ document.getElementById("syncedLabel").textContent=t; }
   function showView(which){
@@ -1264,7 +1275,7 @@
         showEmptyState(); paintSourceBadges(); setSynced("connected · empty"); return;
       }
       HEALTH_STATE="live";
-      setSynced("synced "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+      setSynced(syncLabelFromDate(metrics&&metrics.updated_at));
       render();
     }catch(e){
       HEALTH_STATE="error"; if(GIGS_STATE==="loading") GIGS_STATE="error";
