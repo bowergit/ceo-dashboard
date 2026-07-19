@@ -108,12 +108,13 @@
   .event-tile{min-height:58px;border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.04);padding:8px 9px;display:flex;flex-direction:column;gap:5px}
   .event-tile .date{font-family:'IBM Plex Mono';font-size:10px;color:var(--gold)}
   .event-tile strong{font-size:12px;line-height:1.25;color:var(--text);font-weight:600}
-  .summary-tiles{margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .summary-tile{min-height:38px;border:1px solid rgba(201,162,75,.16);border-radius:7px;background:rgba(201,162,75,.07);padding:7px 8px;display:flex;align-items:center;color:var(--text);font-size:11px;font-weight:650;line-height:1.2;overflow:hidden}
-  .summary-tile span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .summary-tile.empty{border-color:var(--line);background:rgba(255,255,255,.03);color:var(--faint);font-weight:500}
-  @media(min-width:1100px){.summary-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
-  @media(max-width:560px){.summary-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .summary-main{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:16px;margin-top:8px}
+  .summary-main .big{margin-top:0}
+  .summary-tiles{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding-top:2px}
+  .summary-tile{border:1px solid rgba(201,162,75,.18);border-radius:6px;background:rgba(201,162,75,.07);padding:6px 8px;color:var(--text);font-size:11px;font-weight:650;line-height:1.15;max-width:112px;min-width:56px}
+  .summary-tile span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .summary-tile.empty{border-color:var(--line);background:rgba(255,255,255,.03);color:var(--faint);font-weight:500;max-width:none}
+  @media(max-width:560px){.summary-main{grid-template-columns:1fr;gap:8px}.summary-tiles{padding-top:0}}
   .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
   .pill.ok{color:var(--ok);background:rgba(63,185,80,.12)} .pill.watch{color:var(--watch);background:rgba(210,153,34,.12)} .pill.behind{color:var(--behind);background:rgba(248,81,73,.12)}
   .attention{margin-bottom:16px}
@@ -321,18 +322,16 @@
       <details class="income-card" id="socialCard">
         <summary>
         <div class="lab">Social <span class="faint" style="font-weight:400">· this month</span></div>
-        <div class="big" id="socialBig">--</div>
+        <div class="summary-main"><div class="big" id="socialBig">--</div><div class="summary-tiles" id="socialTiles"></div></div>
         <div class="foot" id="socialFoot"></div>
-        <div class="summary-tiles" id="socialTiles"></div>
         </summary>
         <div class="income-detail" id="socialDetail"></div>
       </details>
       <details class="income-card" id="aimeeCard">
         <summary>
         <div class="lab">Aimee <span class="faint" style="font-weight:400">· this week</span></div>
-        <div class="big" id="aimeeBig">--</div>
+        <div class="summary-main"><div class="big" id="aimeeBig">--</div><div class="summary-tiles" id="aimeeTiles"></div></div>
         <div class="foot" id="aimeeFoot"></div>
-        <div class="summary-tiles" id="aimeeTiles"></div>
         </summary>
         <div class="income-detail" id="aimeeDetail"></div>
       </details>
@@ -416,11 +415,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."},
     {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."},
     {v:"1.16.2",d:"2026-07-19",note:"Live refresh labels now use the successful page fetch time instead of stale metrics.updated_at, so mobile refreshes do not appear stuck on old metrics rows. Social and Aimee cards now open by default with compact event tiles visible immediately."},
     {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."},
-    {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."},
-    {v:"1.15.0",d:"2026-07-15",note:"Maths income now comes from the real tutoring_* Supabase tables instead of metrics.tutoring_monthly; lessons show done/planned monthly totals with Past/Next month controls. Shabbat scoring is now current-month only: 8 protected slots, reduced equally for each slot with a timed-gig clash."}
+    {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -908,7 +907,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.16.3";
+    document.getElementById("versionLabel").textContent="v1.16.4";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1146,7 +1145,7 @@
       var socialEventsR=socialEventsThisMonth(), socialMinR=m.social_target_min||3, socialMaxR=m.social_target_max||5;
       var sp2=socialPace(socialEventsR.length,socialMinR,socialMaxR,new Date());
       document.getElementById("socialBig").innerHTML=pv(socialEventsR.length);
-      document.getElementById("socialFoot").innerHTML='<span class="pill '+sp2.cls+'">'+sp2.label+'</span> target '+socialMinR+'-'+socialMaxR;
+      document.getElementById("socialFoot").innerHTML='<span class="pill '+sp2.cls+'">'+sp2.label+'</span>';
       document.getElementById("socialTiles").innerHTML=summaryTilesHTML(socialEventsR,"No social yet");
       document.getElementById("socialDetail").innerHTML=eventTilesHTML(socialEventsR);
     } else {
@@ -1204,7 +1203,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.16.3";
+    document.getElementById("versionLabel").textContent="v1.16.4";
   }
 
   // ---------- modes ----------
