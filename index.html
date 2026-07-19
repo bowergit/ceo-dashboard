@@ -104,6 +104,10 @@
   .mini-row{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
   .mini-row strong{color:var(--text);font-weight:600}
   .mini-row .amount{font-family:'IBM Plex Mono';color:var(--gold)}
+  .event-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+  .event-tile{min-height:58px;border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.04);padding:8px 9px;display:flex;flex-direction:column;gap:5px}
+  .event-tile .date{font-family:'IBM Plex Mono';font-size:10px;color:var(--gold)}
+  .event-tile strong{font-size:12px;line-height:1.25;color:var(--text);font-weight:600}
   .pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
   .pill.ok{color:var(--ok);background:rgba(63,185,80,.12)} .pill.watch{color:var(--watch);background:rgba(210,153,34,.12)} .pill.behind{color:var(--behind);background:rgba(248,81,73,.12)}
   .attention{margin-bottom:16px}
@@ -308,7 +312,7 @@
 
     <div class="sect-title"><h2>Social <span id="socialBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 3-5 social events a month · 1+ a week with Aimee</span></div>
     <div class="grid g2">
-      <details class="income-card" id="socialCard">
+      <details class="income-card" id="socialCard" open>
         <summary>
         <div class="lab">Social <span class="faint" style="font-weight:400">· this month</span></div>
         <div class="big" id="socialBig">--</div>
@@ -316,7 +320,7 @@
         </summary>
         <div class="income-detail" id="socialDetail"></div>
       </details>
-      <details class="income-card" id="aimeeCard">
+      <details class="income-card" id="aimeeCard" open>
         <summary>
         <div class="lab">Aimee <span class="faint" style="font-weight:400">· this week</span></div>
         <div class="big" id="aimeeBig">--</div>
@@ -404,11 +408,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.16.2",d:"2026-07-19",note:"Live refresh labels now use the successful page fetch time instead of stale metrics.updated_at, so mobile refreshes do not appear stuck on old metrics rows. Social and Aimee cards now open by default with compact event tiles visible immediately."},
     {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."},
     {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."},
     {v:"1.15.0",d:"2026-07-15",note:"Maths income now comes from the real tutoring_* Supabase tables instead of metrics.tutoring_monthly; lessons show done/planned monthly totals with Past/Next month controls. Shabbat scoring is now current-month only: 8 protected slots, reduced equally for each slot with a timed-gig clash."},
-    {v:"1.14.0",d:"2026-07-15",note:"Shabbat/festival panel now only shows actual clashes: gigs that overlap candle-lighting-to-Havdalah protected windows. Clear timed gigs stay out of this panel instead of appearing as noisy audit rows."},
-    {v:"1.13.0",d:"2026-07-15",note:"Social/Aimee now show actual event titles (new relationship_events Supabase table, owner-read only, synced via Apps Script service_role key from the Social/Aimee calendars) instead of just a bare count — expandable card like Magic/Maths, counts computed client-side same as workouts. Fixed weekdots bug: clicking a past week put a gold ring on every single day cell, not just the ones with a workout — .selected was applied to all 7 cells whenever viewing history, now removed (the gold fill on .on already carries that meaning)."}
+    {v:"1.14.0",d:"2026-07-15",note:"Shabbat/festival panel now only shows actual clashes: gigs that overlap candle-lighting-to-Havdalah protected windows. Clear timed gigs stay out of this panel instead of appearing as noisy audit rows."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -896,7 +900,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.16.1";
+    document.getElementById("versionLabel").textContent="v1.16.2";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1109,9 +1113,9 @@
     var socialBadgeEl=document.getElementById("socialBadge"); if(socialBadgeEl) socialBadgeEl.innerHTML=srcBadge(HEALTH_STATE);
     var relUsableR=HEALTH_STATE==="live"||HEALTH_STATE==="sample";
     var relNoteR=HEALTH_STATE==="loading"?"Loading…":HEALTH_STATE==="error"?"Could not load — try Refresh.":"Not synced yet.";
-    function eventListHTML(events){
-      return events.length?'<div class="mini-list">'+events.slice().sort(function(a,b){return a.date<b.date?1:-1;}).map(function(e){
-        return '<div class="mini-row"><span class="mono">'+shortDate(e.date)+'</span><strong>'+esc(e.title||"Event")+'</strong></div>';
+    function eventTilesHTML(events){
+      return events.length?'<div class="event-tiles">'+events.slice().sort(function(a,b){return a.date>b.date?1:-1;}).map(function(e){
+        return '<div class="event-tile"><span class="date">'+shortDate(e.date)+'</span><strong>'+esc(e.title||"Event")+'</strong></div>';
       }).join("")+'</div>':'<div class="small faint">No events logged in this period.</div>';
     }
     if(relUsableR){
@@ -1119,7 +1123,7 @@
       var sp2=socialPace(socialEventsR.length,socialMinR,socialMaxR,new Date());
       document.getElementById("socialBig").innerHTML=pv(socialEventsR.length);
       document.getElementById("socialFoot").innerHTML='<span class="pill '+sp2.cls+'">'+sp2.label+'</span> target '+socialMinR+'-'+socialMaxR;
-      document.getElementById("socialDetail").innerHTML=eventListHTML(socialEventsR);
+      document.getElementById("socialDetail").innerHTML=eventTilesHTML(socialEventsR);
     } else {
       document.getElementById("socialBig").textContent="--";
       document.getElementById("socialFoot").textContent=relNoteR;
@@ -1130,7 +1134,7 @@
       var ap2=aimeePace(aimeeEventsR.length,aimeeTargetR,dayOfWeekIndex(new Date()));
       document.getElementById("aimeeBig").innerHTML=pv(aimeeEventsR.length+" / "+aimeeTargetR);
       document.getElementById("aimeeFoot").innerHTML='<span class="pill '+ap2.cls+'">'+ap2.label+'</span>';
-      document.getElementById("aimeeDetail").innerHTML=eventListHTML(aimeeEventsR);
+      document.getElementById("aimeeDetail").innerHTML=eventTilesHTML(aimeeEventsR);
     } else {
       document.getElementById("aimeeBig").textContent="--";
       document.getElementById("aimeeFoot").textContent=relNoteR;
@@ -1172,7 +1176,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.16.1";
+    document.getElementById("versionLabel").textContent="v1.16.2";
   }
 
   // ---------- modes ----------
@@ -1275,7 +1279,7 @@
         showEmptyState(); paintSourceBadges(); setSynced("connected · empty"); return;
       }
       HEALTH_STATE="live";
-      setSynced(syncLabelFromDate(metrics&&metrics.updated_at));
+      setSynced(syncLabelFromDate(new Date()));
       render();
     }catch(e){
       HEALTH_STATE="error"; if(GIGS_STATE==="loading") GIGS_STATE="error";
