@@ -159,7 +159,9 @@
   .bar-tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:11px;color:var(--text);white-space:nowrap;margin-bottom:8px;opacity:0;pointer-events:none;transition:.1s;z-index:10}
   .bar:hover .bar-tooltip{opacity:1}
   .weight-now{font-family:'IBM Plex Mono';font-size:30px;font-weight:600}
-  .weight-chart{width:100%;height:118px;margin-top:10px;display:block;overflow:visible}
+  /* touch-action:none stops the browser treating a drag across the chart as a page-scroll
+     gesture, so gliding a finger along it tracks the crosshair instead of scrolling the page. */
+  .weight-chart{width:100%;height:118px;margin-top:10px;display:block;overflow:visible;touch-action:none}
   .weight-chart .band{fill:rgba(63,185,80,.08)}
   .weight-chart .baseline{stroke:var(--ok);stroke-width:1;stroke-dasharray:4 4;opacity:.75}
   .weight-chart .limit{stroke:var(--behind);stroke-width:1;stroke-dasharray:3 4;opacity:.75}
@@ -172,6 +174,14 @@
   .weight-chart .point.watch{stroke:var(--watch);fill:var(--watch)}
   .weight-chart .point.watch:hover{filter:drop-shadow(0 0 4px rgba(210,153,34,.5))}
   .weight-chart text{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--faint)}
+  /* One shared crosshair (line + tooltip), always drawn last so it's always on top of every dot —
+     replaces the old per-dot hover tooltip, which is what let a later dot's circle paint over an
+     earlier dot's tooltip box. Driven by pointer events on the whole chart, not just the dots, so
+     it works on a touch drag ("glide a finger along it") and not just an exact tap on a 3px dot. */
+  .weight-chart .crosshair-line{stroke:var(--gold);stroke-width:1;stroke-dasharray:3 3;opacity:0;pointer-events:none;transition:opacity .12s ease}
+  .weight-chart .crosshair-line.show{opacity:.85}
+  .weight-chart .crosshair-tip{opacity:0;pointer-events:none;transition:opacity .12s ease}
+  .weight-chart .crosshair-tip.show{opacity:1}
   table.lessons{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   table.lessons td{padding:6px 4px;border-bottom:1px solid var(--line);color:var(--muted)}
   .tag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600}
@@ -415,11 +425,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."},
     {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."},
     {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."},
     {v:"1.16.2",d:"2026-07-19",note:"Live refresh labels now use the successful page fetch time instead of stale metrics.updated_at, so mobile refreshes do not appear stuck on old metrics rows. Social and Aimee cards now open by default with compact event tiles visible immediately."},
-    {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."},
-    {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."}
+    {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -589,6 +599,7 @@
   var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
   var selectedIncomeMonthOffset=0, selectedMagicMonthOffset=0, selectedMathsMonthOffset=0, selectedShabbatMonthOffset=0;
+  var WEIGHT_CHART_STATE=null; // {pts,left,top,w,h} refreshed every render(); read by the pointer handler below
 
   // ---------- scoring ----------
   function monthBounds(offset){
@@ -598,15 +609,45 @@
   function monthNavHTML(kind,bounds){
     return '<div class="month-nav" data-kind="'+kind+'"><span class="label">'+bounds.label+'</span><span class="buttons"><button type="button" data-month="'+kind+'" data-dir="-1" aria-label="Previous month">&lsaquo;</button><button type="button" data-month="'+kind+'" data-dir="1" aria-label="Next month">&rsaquo;</button></span></div>';
   }
+  // Glides the given containers out, runs the (possibly async) update, then glides the freshly
+  // re-rendered content back in — used for month-nav clicks so "next/previous month" reads as a
+  // slide rather than an instant content swap. dir>0 (next/right arrow) exits left, enters from
+  // the right; dir<0 does the reverse. The containers themselves are stable elements that render()
+  // only refills via innerHTML, so inline transform/opacity survive the update in between.
+  function withSlide(ids,dir,action){
+    var els=ids.map(function(id){return document.getElementById(id);}).filter(Boolean);
+    if(!els.length){ action(); return; }
+    els.forEach(function(el){
+      el.style.transition="transform .16s ease, opacity .16s ease";
+      el.style.transform="translateX("+(dir>0?"-10px":"10px")+")";
+      el.style.opacity="0.35";
+    });
+    setTimeout(function(){
+      var result=action();
+      function settle(){
+        els.forEach(function(el){ el.style.transition="none"; el.style.transform="translateX("+(dir>0?"10px":"-10px")+")"; el.style.opacity="0.35"; });
+        els.forEach(function(el){ el.offsetHeight; }); // force reflow so the next transition actually animates
+        els.forEach(function(el){ el.style.transition="transform .18s ease, opacity .18s ease"; el.style.transform="translateX(0)"; el.style.opacity="1"; });
+        setTimeout(function(){ els.forEach(function(el){ el.style.transition=""; el.style.transform=""; el.style.opacity=""; }); },200);
+      }
+      if(result&&typeof result.then==="function") result.then(settle); else settle();
+    },140);
+  }
   function attachMonthNav(){
     document.querySelectorAll("[data-month]").forEach(function(btn){
       btn.addEventListener("click",function(){
         var kind=btn.getAttribute("data-month"),dir=parseInt(btn.getAttribute("data-dir"),10)||0;
-        if(kind==="income") selectedIncomeMonthOffset+=dir;
-        if(kind==="magic") selectedMagicMonthOffset+=dir;
-        if(kind==="maths") selectedMathsMonthOffset+=dir;
-        if(kind==="shabbat"){ selectedShabbatMonthOffset+=dir; loadShabbatAudit().then(render); return; }
-        render();
+        var ids=["kpiRow"];
+        if(kind==="magic") ids.push("magicDetail");
+        if(kind==="maths") ids.push("lessonsWrap");
+        if(kind==="shabbat") ids.push("shabbatDetail");
+        withSlide(ids,dir,function(){
+          if(kind==="income") selectedIncomeMonthOffset+=dir;
+          if(kind==="magic") selectedMagicMonthOffset+=dir;
+          if(kind==="maths") selectedMathsMonthOffset+=dir;
+          if(kind==="shabbat"){ selectedShabbatMonthOffset+=dir; return loadShabbatAudit().then(render); }
+          render();
+        });
       });
     });
   }
@@ -716,6 +757,44 @@
   function weightTrendAt(dateISO,kg){ // same week-over-week comparison, but for an arbitrary point (used per chart dot)
     var prior=weightNDaysAgo(dateISO,7); if(prior==null) return null;
     return Math.round((kg-prior)*10)/10;
+  }
+  // Weight-chart crosshair: finds the nearest logged point to the pointer's X position (not the
+  // exact dot) and shows a vertical line + the value above it. Works from a click/tap anywhere in
+  // the plot area, and updates continuously while a finger (or mouse) drags across it — attached
+  // once to the stable <svg id="weightChart"> element (see below), reading the latest
+  // WEIGHT_CHART_STATE that render() refreshes each time the chart is rebuilt.
+  function updateWeightCrosshair(clientX){
+    if(!WEIGHT_CHART_STATE) return;
+    var svg=document.getElementById("weightChart"); if(!svg) return;
+    var rect=svg.getBoundingClientRect(); if(!rect.width) return;
+    var vb=svg.viewBox&&svg.viewBox.baseVal, vbWidth=vb&&vb.width?vb.width:320;
+    var svgX=(clientX-rect.left)*(vbWidth/rect.width);
+    var pts=WEIGHT_CHART_STATE.pts.filter(function(p){return p[1]!=null;});
+    if(!pts.length) return;
+    var nearest=pts[0], bestDist=Math.abs(pts[0][0]-svgX);
+    pts.forEach(function(p){ var d=Math.abs(p[0]-svgX); if(d<bestDist){ bestDist=d; nearest=p; } });
+    var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
+    var tipRect=document.getElementById("weightCrosshairRect"), tipText=document.getElementById("weightCrosshairText");
+    if(!line||!tipG||!tipRect||!tipText) return;
+    var st=WEIGHT_CHART_STATE;
+    line.setAttribute("x1",nearest[0]); line.setAttribute("x2",nearest[0]);
+    line.classList.add("show");
+    var labelText=fmtD(nearest[2].date)+": "+nearest[2].kg+"kg";
+    var boxW=labelText.length*5.6+14, boxH=18;
+    var lx=Math.min(Math.max(nearest[0],st.left+boxW/2),st.left+st.w-boxW/2);
+    var ly=nearest[1]-12<st.top+8? nearest[1]+18 : nearest[1]-12;
+    tipRect.setAttribute("x",(lx-boxW/2).toFixed(1)); tipRect.setAttribute("y",(ly-boxH+4).toFixed(1));
+    tipRect.setAttribute("width",boxW.toFixed(1)); tipRect.setAttribute("height",boxH);
+    tipText.setAttribute("x",lx.toFixed(1)); tipText.setAttribute("y",(ly+2).toFixed(1));
+    tipText.textContent=labelText;
+    var trendAtPt=weightTrendAt(nearest[2].date,nearest[2].kg);
+    tipText.style.fill=trendAtPt==null?"var(--ok)":(trendAtPt<=0?"var(--ok)":trendAtPt<=1?"var(--watch)":"var(--behind)");
+    tipG.classList.add("show");
+  }
+  function hideWeightCrosshair(){
+    var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
+    if(line) line.classList.remove("show");
+    if(tipG) tipG.classList.remove("show");
   }
   function dayOfWeekIndex(d){ return d.getDay()+1; } // Sunday=1 .. Saturday=7 (Sunday is day one of the week)
   function socialPace(count, min, max, now){ // more social events is good; pace-aware the same way workouts are
@@ -907,7 +986,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.16.4";
+    document.getElementById("versionLabel").textContent="v1.17.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1068,51 +1147,42 @@
           dividers+='<line x1="'+dx+'" x2="'+dx+'" y1="'+top+'" y2="'+(top+h)+'" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,3"></line>';
         }
       }
+      // All dots drawn first, THEN the one shared crosshair — so the crosshair (line + tooltip)
+      // always paints on top of every dot, never the other way round. Previously each dot had its
+      // own tooltip drawn right after itself, so a dot further right could paint over an earlier
+      // dot's tooltip box if they overlapped.
+      var dotsSvg=pts.map(function(p){
+        if(p[1]===null) return '';
+        // Colour each dot by its own week-over-week trend (vs a reading ~7 days before IT, not "today"),
+        // same logic as the headline. A one-day uptick that's still part of a good weekly trend won't
+        // flash red — only a genuine week-over-week rise does. No comparison available yet = neutral, not bad.
+        var trendAtPt=weightTrendAt(p[2].date,p[2].kg);
+        var cls = trendAtPt==null?"good":(trendAtPt<=0?"good":trendAtPt<=1?"watch":"bad");
+        return '<circle class="point '+cls+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>';
+      }).join("");
       chart.innerHTML=
         '<rect class="band" x="'+left+'" y="'+yTop.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
         dividers+
         '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
-        '<g>'+pts.map(function(p,idx){
-          if(p[1]===null) return '';
-          // Colour each dot by its own week-over-week trend (vs a reading ~7 days before IT, not "today"),
-          // same logic as the headline. A one-day uptick that's still part of a good weekly trend won't
-          // flash red — only a genuine week-over-week rise does. No comparison available yet = neutral, not bad.
-          var curKg=p[2].kg, trendAtPt=weightTrendAt(p[2].date,curKg);
-          var cls = trendAtPt==null?"good":(trendAtPt<=0?"good":trendAtPt<=1?"watch":"bad");
-          var statusCol=cls==="bad"?"var(--behind)":cls==="watch"?"var(--watch)":"var(--ok)";
-          var lx=Math.min(Math.max(p[0],left+50),left+w-50); // clamp so the tooltip box never clips at the edges
-          var ly=p[1]-12<top+8? p[1]+18 : p[1]-12; // flip below point if too near the top
-          var labelText=fmtD(p[2].date)+': '+p[2].kg+'kg';
-          var boxW=labelText.length*5.6+14, boxH=18;
-          var boxX=lx-boxW/2, boxY=ly-boxH+4;
-          return '<g class="point-group" style="cursor:pointer">'+
-            '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="transparent"></circle>'+ // bigger hover target
-            '<circle class="point '+cls+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>'+
-            '<g class="point-tip" style="opacity:0;pointer-events:none;transition:.1s">'+
-              '<rect x="'+boxX.toFixed(1)+'" y="'+boxY.toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="'+boxH+'" rx="4" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1"></rect>'+
-              '<text class="pv" x="'+lx.toFixed(1)+'" y="'+(ly+2).toFixed(1)+'" text-anchor="middle" style="font-size:10px;fill:'+statusCol+';font-weight:600">'+labelText+'</text>'+
-            '</g></g>';
-        }).join("")+'</g>'+
+        '<g>'+dotsSvg+'</g>'+
         '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
         '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
-        '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>';
-      // Add hover listeners to point groups
-      var pointGroups = chart.querySelectorAll(".point-group");
-      pointGroups.forEach(function(g) {
-        g.addEventListener("mouseenter", function() {
-          var tip = g.querySelector(".point-tip");
-          if (tip) tip.style.opacity = "1";
-        });
-        g.addEventListener("mouseleave", function() {
-          var tip = g.querySelector(".point-tip");
-          if (tip) tip.style.opacity = "0";
-        });
-      });
+        '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>'+
+        '<line class="crosshair-line" id="weightCrosshairLine" x1="0" y1="'+top+'" x2="0" y2="'+(top+h)+'"></line>'+
+        '<g class="crosshair-tip" id="weightCrosshairTip">'+
+          '<rect id="weightCrosshairRect" x="0" y="0" width="0" height="18" rx="4" fill="var(--panel-2)" stroke="var(--gold-dim)" stroke-width="1"></rect>'+
+          '<text id="weightCrosshairText" x="0" y="0" text-anchor="middle" style="font-size:10px;font-weight:600"></text>'+
+        '</g>';
+      // Fresh data + geometry for the pointer handler (attached once, outside render — see
+      // initWeightChartInteraction) to read on every pointerdown/pointermove.
+      WEIGHT_CHART_STATE={pts:pts,left:left,top:top,w:w,h:h};
+    } else {
+      chart.innerHTML="";
+      WEIGHT_CHART_STATE=null;
     }
-    else chart.innerHTML="";
 
     // social & Aimee — event-level detail from relationship_events (Supabase), counts and lists
     // both computed client-side, the same way workouts are. Shares HEALTH_STATE since it's synced
@@ -1203,7 +1273,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.16.4";
+    document.getElementById("versionLabel").textContent="v1.17.0";
   }
 
   // ---------- modes ----------
@@ -1255,6 +1325,55 @@
     try{ localStorage.setItem("os_ceo_privacy",on?"1":"0"); }catch(e){}
   }
   privacyBtn.addEventListener("click",function(){ setPrivacy(!document.body.classList.contains("private")); });
+
+  // Weight chart pointer tracking — attached once to the stable <svg id="weightChart"> element
+  // (render() only replaces its children, never the element itself), so this survives every
+  // re-render without needing to be re-bound. pointermove fires continuously while a mouse
+  // hovers (no click needed) and while a touch is dragging ("glide a finger along it"); pointerup
+  // intentionally does NOT hide the crosshair, since on a touchscreen there's no hover state to
+  // fall back to after lifting a finger — leave the last value showing until the next touch.
+  var weightChartEl=document.getElementById("weightChart");
+  if(weightChartEl){
+    weightChartEl.addEventListener("pointerdown",function(e){ updateWeightCrosshair(e.clientX); });
+    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX); });
+    weightChartEl.addEventListener("pointerleave",function(e){ if(e.pointerType==="mouse") hideWeightCrosshair(); });
+  }
+
+  // Animated <details>/<summary> open+close — the browser has no built-in transition for this,
+  // so intercept the summary click, drive height+opacity on the one content child ourselves, and
+  // only flip the actual `open` attribute once the animation direction is decided. Applies to
+  // every <details> on the page (Magic/Maths/Social/Aimee cards and the footer changelog), not
+  // just a specific one, since it's driven by structure (summary + one content child) not by class.
+  // Native <details> has no built-in open/close animation, and animating its content's `height`
+  // fights the browser's own internal handling of collapsed <details> content (Chrome/Firefox use
+  // content-visibility on the hidden content, which doesn't reliably cooperate with a manual
+  // height transition — the content can end up stuck rendering at padding-only size while the
+  // element still reports itself "open"). Side-stepping that entirely: let the browser reveal/
+  // hide the content instantly as it always has, and animate opacity + a small vertical shift on
+  // top of that — no height involved, nothing to fight.
+  function initAnimatedDetails(){
+    document.querySelectorAll("details").forEach(function(details){
+      var summary=details.querySelector(":scope > summary"), content=details.lastElementChild;
+      if(!summary||!content||summary===content||summary._glideBound) return;
+      summary._glideBound=true;
+      content.style.transition="opacity .18s ease, transform .18s ease";
+      summary.addEventListener("click",function(e){
+        e.preventDefault();
+        if(details.hasAttribute("open")){
+          content.style.opacity="0"; content.style.transform="translateY(-4px)";
+          setTimeout(function(){
+            details.removeAttribute("open");
+            content.style.opacity=""; content.style.transform="";
+          },160);
+        } else {
+          details.setAttribute("open","");
+          content.style.opacity="0"; content.style.transform="translateY(-4px)";
+          content.offsetHeight; // reflow so the next line actually transitions instead of no-op-ing
+          content.style.opacity="1"; content.style.transform="translateY(0)";
+        }
+      });
+    });
+  }
 
   async function getClient(){
     if(sb) return sb;
@@ -1347,6 +1466,7 @@
   // init: honour saved mode, saved privacy, and handle a magic-link redirect (which lands in Live)
   (async function init(){
     renderChangelog();
+    initAnimatedDetails();
     var savedPrivacy="0"; try{ savedPrivacy=localStorage.getItem("os_ceo_privacy")||"0"; }catch(e){}
     setPrivacy(savedPrivacy==="1");
     var saved="sample"; try{ saved=localStorage.getItem("os_ceo_mode")||"sample"; }catch(e){}
