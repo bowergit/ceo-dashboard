@@ -482,11 +482,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.21.0",d:"2026-07-29",note:"Workouts no longer count today's or future sessions as done — only days that have fully passed count, so the dashboard can't claim a session you haven't actually trained yet. Everything today or later reads as planned, and the wording now says 'on track to hit 3' rather than implying it's already banked. Tutoring load now has a ceiling: more lessons is good up to 12 a week, flagged above that, and treated as a problem past 15 — it earns, but selling more hours works against the autonomy this whole thing is for."},
     {v:"1.20.0",d:"2026-07-29",note:"Added a 'Why' button in the header (spark icon, next to discreet mode) — opens a full-screen overlay that blurs the whole dashboard and reveals Daniel's own written Why, one line at a time."},
     {v:"1.19.0",d:"2026-07-27",note:"Workouts this week now shows what's booked in on the Exercise calendar for the rest of the week, not just what's already been done — scheduled days get a hollow/dashed marker instead of the solid gold 'done' one, and the training attention item now says 'on track' when what's already logged plus what's still booked in covers the target, instead of only ever judging pace on completed sessions. Requires the Apps Script sync to be re-pasted from scripts/apps-script-calendar-sync.gs (widened the workouts window to include the rest of this week, and added a workouts.status column)."},
     {v:"1.18.0",d:"2026-07-27",note:"Added a home-screen app icon (apple-touch-icon + manifest.webmanifest) so 'Add to Home Screen' on mobile gets a real icon instead of a browser-generated screenshot. Locked the viewport to stop pinch-zoom and horizontal scroll/rubber-banding on mobile — the dashboard is meant to be used at its fixed width, not panned around."},
-    {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."},
-    {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."}
+    {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -716,12 +716,12 @@
   function kpiMonthNav(kind){
     return '<span class="kpi-nav"><button type="button" data-month="'+kind+'" data-dir="-1" aria-label="Previous month">&lsaquo;</button><button type="button" data-month="'+kind+'" data-dir="1" aria-label="Next month">&rsaquo;</button></span>';
   }
-  // A workout row is "scheduled" until its calendar date has passed, then it's treated as done —
-  // same ground truth the rest of this app already used (a calendar event = a workout happened),
-  // just extended one week forward. Checked client-side too (not just trusting the last sync) so
-  // a scheduled row never reads as still-scheduled once its day is in the past.
+  // Done = the day has fully passed. Today's and future sessions are always "planned", never
+  // counted as done — the sync stamps status from the event's start time, so a session booked
+  // for 7am reads as 'completed' the moment 7am passes whether or not it actually happened.
+  // Only a day that's fully behind us is safe to claim as done, so the dashboard never tells
+  // Daniel he trained when he hasn't.
   function workoutIsDone(w){
-    if((w.status||"completed")!=="scheduled") return true;
     var today=new Date(); today.setHours(0,0,0,0);
     return dateObj(w.date)<today;
   }
@@ -742,6 +742,22 @@
     var billable=rows.filter(function(l){return !l.is_complimentary;});
     var total=billable.reduce(function(sum,l){return sum+(Number(l.amount)||0);},0);
     return {rows:rows,done:done,planned:planned,total:total,bounds:monthBounds(offset||0)};
+  }
+  // Tutoring load is deliberately NOT "more is always better". More lessons is more money, but
+  // past a point it's just selling more hours — the opposite of the autonomy this whole dashboard
+  // exists to build toward. So the scale tops out: good up to LESSONS_SWEET, flagged above it,
+  // and treated as a real problem past LESSONS_CAP however much it earns.
+  var LESSONS_SWEET=12, LESSONS_CAP=15;
+  function lessonsThisWeek(){
+    var wk=weekKey(new Date());
+    return (S.lessons||[]).filter(function(l){return weekKey(dateObj(l.date))===wk&&l.status!=="cancelled"&&l.status!=="missed";}).length;
+  }
+  function lessonLoadPace(n){
+    if(n>LESSONS_CAP) return {cls:"behind", label:"over capacity"};
+    if(n>LESSONS_SWEET) return {cls:"watch", label:"heavy week"};
+    if(n>=8) return {cls:"ok", label:"strong"};
+    if(n>0) return {cls:"ok", label:"building"};
+    return {cls:"watch", label:"empty week"};
   }
   function rateForLesson(studentId,date,rateHistory){
     var rows=(rateHistory||[]).filter(function(r){return r.student_id===studentId&&r.effective_from_date<=date;})
@@ -883,13 +899,19 @@
     if(dayIdx<=5) return {cls:"watch", label:"plenty of week left"};
     return {cls:"behind", label:"get one in"};
   }
-  function workoutPace(c, good, great){
-    var day=dayOfWeekIndex(new Date()), expected=Math.ceil(good*day/7);
-    if(c>=great) return {cls:"ok", label:"great"};
-    if(c>=good) return {cls:"ok", label:"good"};
-    if(c>=expected) return {cls:"ok", label:"on track"}; // enough done for how far into the week we are
-    if(c>0) return {cls:"watch", label:"behind pace"};
-    return {cls: day<=2?"watch":"behind", label:"none yet"};
+  // c = actually done (days fully passed), planned = still booked in for today//later this week.
+  // "on track" means done + what's booked covers the target — the sessions exist, they just
+  // haven't happened yet, so it's stated as a forecast ("on track") not an achievement ("hit").
+  function workoutPace(c, good, great, planned){
+    planned=planned||0;
+    var day=dayOfWeekIndex(new Date()), total=c+planned;
+    if(c>=great) return {cls:"ok", label:"target hit"};
+    if(c>=good) return {cls:"ok", label:"target hit"};
+    if(total>=great) return {cls:"ok", label:"on track"};
+    if(total>=good) return {cls:"ok", label:"on track"};
+    if(c>=Math.ceil(good*day/7)) return {cls:"ok", label:"on pace"}; // enough done for how far in we are, nothing more booked
+    if(total>0) return {cls:"watch", label:"short of target"};
+    return {cls: day<=2?"watch":"behind", label:"nothing booked"};
   }
   function timedGigs(){
     var gigs=Array.isArray(S.timedGigs)?S.timedGigs:[];
@@ -961,7 +983,9 @@
     var momentum=clamp(Math.round(6+growth*7),0,10);
     var haveHealth=S.workouts.length>0||S.weights.length>0, discipline=null;
     if(haveHealth){
-      var c=workoutsThisWeek(), good=m.workouts_good||3, great=m.workouts_great||4;
+      // Booked-aware: a session still in the diary counts toward the score, so the number doesn't
+      // crater on a Monday just because the week hasn't happened yet.
+      var c=workoutsThisWeek()+scheduledWorkoutsInWeek(weekKey(new Date())).length, good=m.workouts_good||3, great=m.workouts_great||4;
       var wS=c>=great?10:c>=good?8:c===2?6:c===1?3:0;
       var lw=latestWeight(), trend=weightTrend(), wtS=6;
       if(trend!=null) wtS = trend<=0?10 : trend<=1?7 : 4; // trending down/flat vs a week ago is what matters, not a hard absolute line
@@ -1026,18 +1050,11 @@
       if(sp.cls==="ok") items.push({kind:"ok",label:"Social",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
       else items.push({kind:sp.cls,label:"Social",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
     }
-    if(c>=good) items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
-    else{
-      var pace=workoutPace(c,good,great);
-      var scheduledCount=scheduledWorkoutsInWeek(weekKey(new Date())).length, plannedTotal=c+scheduledCount;
-      // Calendar-aware: if what's already booked in for the rest of the week covers the target,
-      // that counts as on track even if pure "done so far" pace wouldn't — the sessions exist,
-      // they just haven't happened yet.
-      if(plannedTotal>=good) items.push({kind:"ok",label:"On track",msg:c+" done, "+scheduledCount+" more booked in this week — on pace for "+good+"."});
-      else if(pace.label==="on track") items.push({kind:"ok",label:"On track",msg:c+" done so far is on pace for "+good+" this week — keep going."});
-      else if(pace.cls==="watch"&&c>0) items.push({kind:"watch",label:"Watch",msg:"Behind pace for "+good+" this week"+(scheduledCount>0?" — "+scheduledCount+" more on the calendar, but that's still short of "+good+".":" — log "+(good-c)+" more soon.")});
-      else items.push({kind:pace.cls,label:pace.cls==="behind"?"Action":"Watch",msg:(c===0&&scheduledCount===0?"No workouts logged or scheduled this week yet. ":c===0?scheduledCount+" workout"+(scheduledCount===1?"":"s")+" on the calendar this week but none done yet. ":"No workouts logged this week yet. ")+(dayOfWeekIndex(new Date())<=2?"Plenty of time left.":"Get one in.")});
-    }
+    var planned=scheduledWorkoutsInWeek(weekKey(new Date())).length, bookedTotal=c+planned;
+    if(c>=good) items.push({kind:"ok",label:"Training",msg:c+" done this week — target of "+good+" already hit. Keep it repeatable."});
+    else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",msg:c+" done, "+planned+" still in the diary — on track to hit "+good+" if you show up."});
+    else if(bookedTotal>0) items.push({kind:"watch",label:"Training",msg:c+" done, "+planned+" booked — that's "+(good-bookedTotal)+" short of "+good+". Get "+(good-bookedTotal)+" more in the calendar."});
+    else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+good+" in the diary.":"Book "+good+" now before the week runs out.")});
     if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
       var trend=weightTrend();
@@ -1057,13 +1074,16 @@
     else items.push({kind:"ok",label:"Good",msg:"Monthly income is past the full lifestyle line."});
     if(sc.growth<0) items.push({kind:"behind",label:"Action",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
     else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",msg:"Year-on-year growth is positive but not decisive yet."});
-    if(lessUp===0) items.push({kind:"watch",label:"Watch",msg:"No upcoming lessons are logged for the next 30 days."});
+    var lw2=lessonsThisWeek(), lp=lessonLoadPace(lw2);
+    if(lp.cls==="behind") items.push({kind:"behind",label:"Tutoring load",msg:lw2+" lessons this week is over the "+LESSONS_CAP+" cap. It earns, but it's buying money with the time you're trying to free up. Cut some back."});
+    else if(lp.cls==="watch"&&lw2>LESSONS_SWEET) items.push({kind:"watch",label:"Tutoring load",msg:lw2+" lessons this week is above the "+LESSONS_SWEET+" you want to sit under. Good money, but it's eating the week — don't let it become the norm."});
+    else if(lessUp===0) items.push({kind:"watch",label:"Tutoring",msg:"No upcoming lessons are logged for the next 30 days."});
     return items.slice(0,6);
   }
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.20.0";
+    document.getElementById("versionLabel").textContent="v1.21.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1084,7 +1104,9 @@
     }).join("");
 
     var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
-    var pace=workoutPace(c,good,great), wkClass=pace.cls, wkLabel=pace.label;
+    var plannedWk=scheduledWorkoutsInWeek(weekKey(new Date())).length;
+    var pace=workoutPace(c,good,great,plannedWk), wkClass=pace.cls, wkLabel=pace.label;
+    var lessonsWk=lessonsThisWeek(), lessonLoad=lessonLoadPace(lessonsWk);
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
     var mathsCurrent=lessonMonthStats(0), mathsDisplay=lessonMonthStats(selectedMathsMonthOffset);
     var lessDone=mathsCurrent.done.length, lessUp=mathsCurrent.planned.length;
@@ -1116,10 +1138,10 @@
     var kpis=[
       {lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
       {lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
-      {lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",big:String(mathsDisplay.rows.length),foot:pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
+      {lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
       {lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
       {lab:"Trajectory",big:gbp(rev.totalProjected),money:true,foot:"if pace holds: magic "+pv(gbp(rev.magicProjected))+" · maths "+pv(gbp(rev.mathsProjected))},
-      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
+      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
       {lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken"))},big:shBig,foot:(sh.summary||"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
@@ -1172,11 +1194,16 @@
       // read as "these days are special" when they weren't. .on (gold fill) already carries
       // that meaning; the section title + "This week" button already say you're viewing history.
       var cls=on?" on":sched?" scheduled":"";
-      var title=on?on.join(", "):sched?sched.join(", ")+" — scheduled, not done yet":"No workout logged";
+      var title=on?on.join(", "):sched?sched.join(", ")+" — planned, not done yet":"No workout logged";
       html+='<div class="wd'+cls+'" title="'+title+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
-    document.getElementById("weekSummary").innerHTML=pv(displayWorkouts.length)+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':pv(good-displayWorkouts.length)+" to hit "+pv(good))+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
+    var doneWk=displayWorkouts.length, planWk=displayWeek===currentWeek?scheduledWorkoutsInWeek(displayWeek).length:0;
+    var summaryTail;
+    if(doneWk>=good) summaryTail='<span style="color:var(--ok)">target hit</span>';
+    else if(doneWk+planWk>=good) summaryTail='<span style="color:var(--ok)">on track to hit '+pv(good)+'</span>';
+    else summaryTail=pv(good-doneWk-planWk)+" more to book to hit "+pv(good);
+    document.getElementById("weekSummary").innerHTML=pv(doneWk)+" done"+(planWk>0?" · "+pv(planWk)+" planned":"")+" · "+summaryTail+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
     var resetBtn=document.getElementById("resetWeekBtn");
     if(resetBtn){ resetBtn.addEventListener("click",function(){ selectedWorkoutWeek=null; render(); }); }
 
@@ -1358,7 +1385,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.20.0";
+    document.getElementById("versionLabel").textContent="v1.21.0";
   }
 
   // ---------- modes ----------
