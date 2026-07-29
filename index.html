@@ -276,21 +276,24 @@
   .why-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));background:none;border:none;color:var(--faint);font-size:30px;line-height:1;cursor:pointer;padding:8px;font-family:inherit;z-index:2}
   .why-close:hover{color:var(--gold)}
   .why-glow{width:56px;height:2px;margin:0 auto 24px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0}
-  .why-eyebrow{font-family:'Space Grotesk';font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);text-align:center;margin-bottom:26px;opacity:0;transform-origin:center center;will-change:transform}
+  .why-eyebrow{font-family:'Space Grotesk';letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);text-align:center;margin-bottom:26px;opacity:0}
   .why-body{text-align:center}
   .why-body p{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(17px,2.5vw,25px);line-height:1.6;color:var(--text);margin:0 0 22px;opacity:0}
   .why-body p:last-child{margin-bottom:0;color:var(--gold);font-weight:600}
 
   @keyframes whyIn{to{opacity:1;filter:blur(0);transform:translateY(0)}}
-  /* Big and centred, held, then up into place. translateY is in vh so it lands mid-screen
-     regardless of how tall the text block below it ends up being. */
   /* Fades in big and centred, sits there a full second so it lands as a statement on its own,
-     then travels up and shrinks into place by 2s. Everything after is measured from that. */
+     then travels up and shrinks into place by 2s. Everything after is measured from that.
+     Driven by font-size, not transform:scale — scale renders the text at its small final size
+     and stretches that bitmap up 6x, which is genuinely blurry (like a small image blown up).
+     font-size makes the browser render actual glyphs at each size along the way, so it's crisp
+     start to finish. translateY is in vh so it lands mid-screen regardless of how tall the text
+     block below it ends up being; letter-spacing is em-based so it scales proportionally too. */
   @keyframes whyTitle{
-    0%{opacity:0;transform:translateY(34vh) scale(6)}
-    20%{opacity:1;transform:translateY(34vh) scale(6)}
-    50%{opacity:1;transform:translateY(34vh) scale(6)}
-    100%{opacity:1;transform:translateY(0) scale(1)}
+    0%{opacity:0;font-size:64px;transform:translateY(34vh)}
+    20%{opacity:1;font-size:64px;transform:translateY(34vh)}
+    50%{opacity:1;font-size:64px;transform:translateY(34vh)}
+    100%{opacity:1;font-size:13px;transform:translateY(0)}
   }
   .why-overlay.show .why-eyebrow{animation:whyTitle 2s cubic-bezier(.22,1,.36,1) forwards}
   .why-overlay.show .why-glow{opacity:0;animation:whyIn .9s ease forwards 1.9s}
@@ -304,7 +307,11 @@
   /* The finale. background-clip:text is set up front but stays invisible until the keyframes make
      the text itself transparent, so the gradient only shows during the sweep — no flash of
      unstyled/invisible text if the animation never runs. currentColor (not a fixed value) is what
-     lets the last line keep its gold while every other line returns to normal body text. */
+     lets the last line keep its gold while every other line returns to normal body text.
+     currentColor is also the gradient's OWN endpoints (not transparent) — that's what keeps the
+     text legible the whole way through: outside the bright band the gradient just paints the
+     text's normal colour, so nothing ever actually goes invisible while the highlight travels,
+     it's only ever a brighter patch moving across text that's always there. */
   /* Gradient sits on each line rather than the shared wrapper. Putting it on the wrapper would
      make the sweep one literal wave, but -webkit-text-fill-color is inherited, so the wrapper's
      colour would bleed into every child on the ramp in and out and flash the gold last line white.
@@ -312,16 +319,14 @@
      the gradients line up anyway, so they still read as a single wave front crossing all of them
      at once. All of them animate on the same delay: simultaneous, not staggered. */
   .why-eyebrow,.why-body p{
-    background-image:linear-gradient(100deg,transparent 34%,#ffe7a6 45%,#fff8e2 50%,#ffe7a6 55%,transparent 66%);
+    background-image:linear-gradient(100deg,currentColor 34%,#ffe7a6 45%,#fff8e2 50%,#ffe7a6 55%,currentColor 66%);
     background-size:240% 100%;background-repeat:no-repeat;background-position:190% 0;
     -webkit-background-clip:text;background-clip:text;
   }
   @keyframes whyShimmer{
-    0%{background-position:190% 0;-webkit-text-fill-color:currentColor;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
-    10%{-webkit-text-fill-color:transparent}
+    0%{background-position:190% 0;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
     50%{filter:drop-shadow(0 0 18px rgba(201,162,75,.5))}
-    90%{-webkit-text-fill-color:transparent}
-    100%{background-position:-90% 0;-webkit-text-fill-color:currentColor;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
+    100%{background-position:-90% 0;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
   }
   @keyframes whyGlowPulse{50%{opacity:1;width:220px}}
   /* Every line on the same zero delay, so the whole block lights up together. These re-state the
@@ -559,11 +564,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.24.0",d:"2026-07-29",note:"Why overlay: the big WHY title starting blurry was transform:scale rendering it small then stretching the bitmap up 6x — switched to animating font-size instead, so it's crisp the whole way through. The closing shimmer no longer makes the text vanish for most of its run: the gradient used transparent at its edges, so outside the travelling highlight band the text had no fill at all — now the edges are currentColor, so the text stays fully readable throughout and the highlight is just a brighter patch passing over it."},
     {v:"1.23.0",d:"2026-07-29",note:"Why overlay: WHY now holds big and centred for a full second before it travels up, and the whole sequence is retimed around that. The closing shimmer fires on every line at once. Week bars now draw a dashed ghost on top of the current week showing where it lands if everything still in the calendar happens, so a planned 5 is visible as a 5. Discreet mode blur is now sized in em rather than a flat 6px, so it scales with the number it is hiding — small figures were still readable before."},
     {v:"1.22.0",d:"2026-07-29",note:"Why overlay reworked: WHY now opens big and centred before shrinking into place, the lines are much slower and land on their own timings, and once the last line has had time to read a warm gold shimmer sweeps across all of it. Fixed the header and the Why close button sitting under the Dynamic Island and status bar on iPhone (viewport-fit=cover needed safe-area insets adding back). Bug fixes: the attention panel silently dropped its last items because it truncated to 6 in authoring order rather than by severity, so the new tutoring over-capacity warning could never appear; workout names from Google Calendar weren't HTML-escaped like every other data field; the Gigs tile showed 'avg £0/gig' whenever avg_gig was absent; and the outer week bars' tooltips ran off-screen on mobile."},
     {v:"1.21.0",d:"2026-07-29",note:"Workouts no longer count today's or future sessions as done — only days that have fully passed count, so the dashboard can't claim a session you haven't actually trained yet. Everything today or later reads as planned, and the wording now says 'on track to hit 3' rather than implying it's already banked. Tutoring load now has a ceiling: more lessons is good up to 12 a week, flagged above that, and treated as a problem past 15 — it earns, but selling more hours works against the autonomy this whole thing is for."},
     {v:"1.20.0",d:"2026-07-29",note:"Added a 'Why' button in the header (spark icon, next to discreet mode) — opens a full-screen overlay that blurs the whole dashboard and reveals Daniel's own written Why, one line at a time."},
-    {v:"1.19.0",d:"2026-07-27",note:"Workouts this week now shows what's booked in on the Exercise calendar for the rest of the week, not just what's already been done — scheduled days get a hollow/dashed marker instead of the solid gold 'done' one, and the training attention item now says 'on track' when what's already logged plus what's still booked in covers the target, instead of only ever judging pace on completed sessions. Requires the Apps Script sync to be re-pasted from scripts/apps-script-calendar-sync.gs (widened the workouts window to include the rest of this week, and added a workouts.status column)."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1165,7 +1170,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.23.0";
+    document.getElementById("versionLabel").textContent="v1.24.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1480,7 +1485,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.23.0";
+    document.getElementById("versionLabel").textContent="v1.24.0";
   }
 
   // ---------- modes ----------
