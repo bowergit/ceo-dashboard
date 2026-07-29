@@ -231,6 +231,33 @@
   .icon-btn:hover{border-color:var(--gold-dim);color:var(--gold);background:var(--panel)}
   .icon-btn.on{color:var(--gold);border-color:var(--gold-dim);background:#1e1a10}
   .icon-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+  /* ---------- Why overlay ----------
+     Everything behind it blurs out via backdrop-filter (a transition, so it always restarts
+     cleanly), then each line of text fades up out of a blur one at a time via a @keyframes
+     animation scoped under .why-overlay.show — removing/re-adding that class is what makes the
+     stagger replay identically every time it's opened, not just the first time. */
+  .why-overlay{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;padding:40px 24px;
+    background:radial-gradient(1100px 760px at 50% 42%,rgba(201,162,75,.12),rgba(5,6,8,.92) 62%);
+    opacity:0;pointer-events:none;transition:opacity .5s ease,backdrop-filter .7s ease;
+    backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);}
+  .why-overlay.show{opacity:1;pointer-events:auto;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+  .why-close{position:absolute;top:18px;right:20px;background:none;border:none;color:var(--faint);font-size:30px;line-height:1;cursor:pointer;padding:8px;font-family:inherit}
+  .why-close:hover{color:var(--gold)}
+  .why-glow{width:56px;height:2px;margin:0 auto 24px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0}
+  .why-eyebrow{font-family:'Space Grotesk';font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);text-align:center;margin-bottom:26px;opacity:0}
+  .why-body{max-width:760px;text-align:center}
+  .why-body p{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(17px,2.5vw,25px);line-height:1.6;color:var(--text);margin:0 0 22px;opacity:0}
+  .why-body p:last-child{margin-bottom:0;color:var(--gold);font-weight:600}
+  @keyframes whyIn{to{opacity:1;filter:blur(0);transform:translateY(0)}}
+  .why-overlay.show .why-glow{opacity:0;animation:whyIn .6s ease forwards .05s}
+  .why-overlay.show .why-eyebrow{filter:blur(4px);transform:translateY(8px);animation:whyIn .6s ease forwards .2s}
+  .why-overlay.show .why-body p{filter:blur(6px);transform:translateY(16px);animation:whyIn .9s cubic-bezier(.16,1,.3,1) forwards}
+  .why-overlay.show .why-body p:nth-child(1){animation-delay:.5s}
+  .why-overlay.show .why-body p:nth-child(2){animation-delay:1.05s}
+  .why-overlay.show .why-body p:nth-child(3){animation-delay:1.6s}
+  .why-overlay.show .why-body p:nth-child(4){animation-delay:2.3s}
+  .why-overlay.show .why-body p:nth-child(5){animation-delay:2.7s}
 </style>
 </head>
 <body>
@@ -250,6 +277,9 @@
         <button id="mSample" class="on" role="tab">Sample</button>
         <button id="mLive" role="tab">Live</button>
       </div>
+      <button class="icon-btn" id="whyBtn" type="button" aria-label="Remind me why" title="Remind me why">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z"/></svg>
+      </button>
       <button class="icon-btn" id="privacyBtn" type="button" aria-pressed="false" aria-label="Toggle discreet mode" title="Toggle discreet mode">
         <svg class="eye-open" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         <svg class="eye-closed" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 2l20 20M9.9 9.9a3 3 0 0 0 4.2 4.2M6.5 6.7C3.7 8.5 2 12 2 12s4 7 11 7c1.8 0 3.4-.4 4.8-1.1M17.9 17.9C20.6 16 22 12 22 12s-1.4-3.1-4.2-5.3"/></svg>
@@ -258,6 +288,21 @@
       <button class="btn" id="logoutBtn" style="display:none">Sign out</button>
     </div>
   </header>
+
+  <div class="why-overlay" id="whyOverlay" role="dialog" aria-modal="true" aria-label="Why">
+    <button class="why-close" id="whyClose" type="button" aria-label="Close">&times;</button>
+    <div>
+      <div class="why-glow"></div>
+      <div class="why-eyebrow">Why</div>
+      <div class="why-body">
+        <p>I want to build a life where I choose what I work on, when I work, and who I work with.</p>
+        <p>I want my effort to create assets that continue paying dividends, rather than simply exchanging time for a salary.</p>
+        <p>I want the freedom to pursue opportunities that don't yet exist today, whether that's growing my magic business, expanding tutoring, building AI products, or something I haven't discovered yet.</p>
+        <p>Success isn't simply earning more money.</p>
+        <p>It's creating a life where my work, health, relationships and ambition reinforce each other, and where I can look back knowing I tested my own potential rather than wondering what might have happened.</p>
+      </div>
+    </div>
+  </div>
 
   <div class="banner" id="banner"></div>
 
@@ -437,11 +482,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.20.0",d:"2026-07-29",note:"Added a 'Why' button in the header (spark icon, next to discreet mode) — opens a full-screen overlay that blurs the whole dashboard and reveals Daniel's own written Why, one line at a time."},
     {v:"1.19.0",d:"2026-07-27",note:"Workouts this week now shows what's booked in on the Exercise calendar for the rest of the week, not just what's already been done — scheduled days get a hollow/dashed marker instead of the solid gold 'done' one, and the training attention item now says 'on track' when what's already logged plus what's still booked in covers the target, instead of only ever judging pace on completed sessions. Requires the Apps Script sync to be re-pasted from scripts/apps-script-calendar-sync.gs (widened the workouts window to include the rest of this week, and added a workouts.status column)."},
     {v:"1.18.0",d:"2026-07-27",note:"Added a home-screen app icon (apple-touch-icon + manifest.webmanifest) so 'Add to Home Screen' on mobile gets a real icon instead of a browser-generated screenshot. Locked the viewport to stop pinch-zoom and horizontal scroll/rubber-banding on mobile — the dashboard is meant to be used at its fixed width, not panned around."},
     {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."},
-    {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."},
-    {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."}
+    {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1018,7 +1063,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.19.0";
+    document.getElementById("versionLabel").textContent="v1.20.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1313,7 +1358,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.19.0";
+    document.getElementById("versionLabel").textContent="v1.20.0";
   }
 
   // ---------- modes ----------
@@ -1365,6 +1410,15 @@
     try{ localStorage.setItem("os_ceo_privacy",on?"1":"0"); }catch(e){}
   }
   privacyBtn.addEventListener("click",function(){ setPrivacy(!document.body.classList.contains("private")); });
+
+  // ---------- Why overlay ----------
+  var whyBtn=document.getElementById("whyBtn"), whyOverlay=document.getElementById("whyOverlay"), whyClose=document.getElementById("whyClose");
+  function openWhy(){ whyOverlay.classList.add("show"); document.body.style.overflow="hidden"; }
+  function closeWhy(){ whyOverlay.classList.remove("show"); document.body.style.overflow=""; }
+  whyBtn.addEventListener("click",openWhy);
+  whyClose.addEventListener("click",closeWhy);
+  whyOverlay.addEventListener("click",function(e){ if(e.target===whyOverlay) closeWhy(); });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&whyOverlay.classList.contains("show")) closeWhy(); });
 
   // Weight chart pointer tracking — attached once to the stable <svg id="weightChart"> element
   // (render() only replaces its children, never the element itself), so this survives every
