@@ -36,7 +36,11 @@
   }
   *{box-sizing:border-box} html,body{margin:0}
   html{overflow-x:hidden;touch-action:pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}
-  body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.5;padding:20px;-webkit-font-smoothing:antialiased;overflow-x:hidden;touch-action:pan-y;max-width:100vw}
+  /* viewport-fit=cover (needed to kill the white bars either side in standalone mode) lets the
+     page run under the Dynamic Island and the home indicator, so every edge needs its safe-area
+     inset adding back on or the header sits under the island and is unreadable. */
+  body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden;touch-action:pan-y;max-width:100vw;
+    padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left))}
   .wrap{max-width:1040px;margin:0 auto}
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
   h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin:0}
@@ -170,6 +174,12 @@
   .bar span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--faint)}
   .bar-tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:11px;color:var(--text);white-space:nowrap;margin-bottom:8px;opacity:0;pointer-events:none;transition:.1s;z-index:10}
   .bar:hover .bar-tooltip{opacity:1}
+  /* Centred on the bar, these ran off both edges of the chart — the outer two each side sat past
+     the viewport and got clipped by the body's overflow-x:hidden, so the oldest and newest weeks'
+     tooltips were unreadable on a phone. Anchor the edge ones inward instead. */
+  .bars .bar:nth-child(-n+2) .bar-tooltip{left:0;transform:none}
+  .bars .bar:nth-last-child(-n+2) .bar-tooltip{left:auto;right:0;transform:none}
+  @media(max-width:520px){.bar-tooltip{white-space:normal;width:132px;text-align:center}}
   .weight-now{font-family:'IBM Plex Mono';font-size:30px;font-weight:600}
   /* touch-action:none stops the browser treating a drag across the chart as a page-scroll
      gesture, so gliding a finger along it tracks the crosshair instead of scrolling the page. */
@@ -233,31 +243,71 @@
   .icon-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
   /* ---------- Why overlay ----------
-     Everything behind it blurs out via backdrop-filter (a transition, so it always restarts
-     cleanly), then each line of text fades up out of a blur one at a time via a @keyframes
-     animation scoped under .why-overlay.show — removing/re-adding that class is what makes the
-     stagger replay identically every time it's opened, not just the first time. */
-  .why-overlay{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;padding:40px 24px;
-    background:radial-gradient(1100px 760px at 50% 42%,rgba(201,162,75,.12),rgba(5,6,8,.92) 62%);
-    opacity:0;pointer-events:none;transition:opacity .5s ease,backdrop-filter .7s ease;
+     Sequence: WHY holds big and centred for .2s, then travels up/shrinks into its normal spot by
+     1.1s. Each line then fades up out of a blur on Daniel's own timings, measured as gaps from the
+     line before (3s, 2.4s, 3.4s, 1.3s) — the uneven spacing is deliberate, the long pause lands
+     before "Success isn't simply earning more money". Last line gets 4s to read, then .shimmer is
+     added by JS and a warm gold sweep runs across every line at once.
+     All of it is scoped under .show/.shimmer so removing and re-adding those classes replays the
+     whole thing identically on every open, not just the first. */
+  .why-overlay{position:fixed;inset:0;z-index:999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;
+    padding:calc(40px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+    background:radial-gradient(1100px 760px at 50% 42%,rgba(201,162,75,.12),rgba(5,6,8,.93) 62%);
+    opacity:0;pointer-events:none;transition:opacity .8s ease,backdrop-filter 1.1s ease,background 1.6s ease;
     backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);}
-  .why-overlay.show{opacity:1;pointer-events:auto;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
-  .why-close{position:absolute;top:18px;right:20px;background:none;border:none;color:var(--faint);font-size:30px;line-height:1;cursor:pointer;padding:8px;font-family:inherit}
+  .why-overlay.show{opacity:1;pointer-events:auto;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+  /* margin:auto centres the block when there's room and lets it scroll instead of clipping the
+     top when there isn't — flex centring alone cuts off the top on a short screen. */
+  .why-inner{margin:auto;width:100%;max-width:760px}
+  .why-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));background:none;border:none;color:var(--faint);font-size:30px;line-height:1;cursor:pointer;padding:8px;font-family:inherit;z-index:2}
   .why-close:hover{color:var(--gold)}
   .why-glow{width:56px;height:2px;margin:0 auto 24px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:0}
-  .why-eyebrow{font-family:'Space Grotesk';font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);text-align:center;margin-bottom:26px;opacity:0}
-  .why-body{max-width:760px;text-align:center}
+  .why-eyebrow{font-family:'Space Grotesk';font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);text-align:center;margin-bottom:26px;opacity:0;transform-origin:center center;will-change:transform}
+  .why-body{text-align:center}
   .why-body p{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(17px,2.5vw,25px);line-height:1.6;color:var(--text);margin:0 0 22px;opacity:0}
   .why-body p:last-child{margin-bottom:0;color:var(--gold);font-weight:600}
+
   @keyframes whyIn{to{opacity:1;filter:blur(0);transform:translateY(0)}}
-  .why-overlay.show .why-glow{opacity:0;animation:whyIn .6s ease forwards .05s}
-  .why-overlay.show .why-eyebrow{filter:blur(4px);transform:translateY(8px);animation:whyIn .6s ease forwards .2s}
-  .why-overlay.show .why-body p{filter:blur(6px);transform:translateY(16px);animation:whyIn .9s cubic-bezier(.16,1,.3,1) forwards}
-  .why-overlay.show .why-body p:nth-child(1){animation-delay:.5s}
-  .why-overlay.show .why-body p:nth-child(2){animation-delay:1.05s}
-  .why-overlay.show .why-body p:nth-child(3){animation-delay:1.6s}
-  .why-overlay.show .why-body p:nth-child(4){animation-delay:2.3s}
-  .why-overlay.show .why-body p:nth-child(5){animation-delay:2.7s}
+  /* Big and centred, held, then up into place. translateY is in vh so it lands mid-screen
+     regardless of how tall the text block below it ends up being. */
+  @keyframes whyTitle{
+    0%{opacity:0;transform:translateY(34vh) scale(6)}
+    18%{opacity:1;transform:translateY(34vh) scale(6)}
+    100%{opacity:1;transform:translateY(0) scale(1)}
+  }
+  .why-overlay.show .why-eyebrow{animation:whyTitle 1.1s cubic-bezier(.22,1,.36,1) forwards}
+  .why-overlay.show .why-glow{opacity:0;animation:whyIn .9s ease forwards 1s}
+  .why-overlay.show .why-body p{filter:blur(7px);transform:translateY(18px);animation:whyIn 1.1s cubic-bezier(.16,1,.3,1) forwards}
+  .why-overlay.show .why-body p:nth-child(1){animation-delay:1.1s}
+  .why-overlay.show .why-body p:nth-child(2){animation-delay:4.1s}
+  .why-overlay.show .why-body p:nth-child(3){animation-delay:6.5s}
+  .why-overlay.show .why-body p:nth-child(4){animation-delay:9.9s}
+  .why-overlay.show .why-body p:nth-child(5){animation-delay:11.2s}
+
+  /* The finale. background-clip:text is set up front but stays invisible until the keyframes make
+     the text itself transparent, so the gradient only shows during the sweep — no flash of
+     unstyled/invisible text if the animation never runs. currentColor (not a fixed value) is what
+     lets the last line keep its gold while every other line returns to normal body text. */
+  .why-eyebrow,.why-body p{
+    background-image:linear-gradient(100deg,transparent 38%,#ffe7a6 47%,#fff8e2 51%,#ffe7a6 55%,transparent 64%);
+    background-size:240% 100%;background-repeat:no-repeat;background-position:190% 0;
+    -webkit-background-clip:text;background-clip:text;
+  }
+  @keyframes whyShimmer{
+    0%{background-position:190% 0;-webkit-text-fill-color:currentColor;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
+    10%{-webkit-text-fill-color:transparent}
+    50%{filter:drop-shadow(0 0 18px rgba(201,162,75,.5))}
+    90%{-webkit-text-fill-color:transparent}
+    100%{background-position:-90% 0;-webkit-text-fill-color:currentColor;filter:drop-shadow(0 0 0 rgba(201,162,75,0))}
+  }
+  @keyframes whyGlowPulse{50%{opacity:1;width:220px}}
+  /* Rules below .show on purpose: these re-state the settled end-state (opacity 1, no blur/offset)
+     because setting `animation` here replaces whyIn's forwards fill, which would otherwise snap
+     the text back to its blurred starting position the moment the shimmer takes over. */
+  .why-overlay.shimmer .why-eyebrow,.why-overlay.shimmer .why-body p{
+    opacity:1;filter:none;transform:none;animation:whyShimmer 2.8s ease-in-out}
+  .why-overlay.shimmer .why-glow{opacity:.85;animation:whyGlowPulse 2.8s ease-in-out}
+  .why-overlay.shimmer{background:radial-gradient(1100px 760px at 50% 42%,rgba(201,162,75,.2),rgba(5,6,8,.93) 62%)}
 </style>
 </head>
 <body>
@@ -291,7 +341,7 @@
 
   <div class="why-overlay" id="whyOverlay" role="dialog" aria-modal="true" aria-label="Why">
     <button class="why-close" id="whyClose" type="button" aria-label="Close">&times;</button>
-    <div>
+    <div class="why-inner">
       <div class="why-glow"></div>
       <div class="why-eyebrow">Why</div>
       <div class="why-body">
@@ -482,11 +532,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.22.0",d:"2026-07-29",note:"Why overlay reworked: WHY now opens big and centred before shrinking into place, the lines are much slower and land on their own timings, and once the last line has had time to read a warm gold shimmer sweeps across all of it. Fixed the header and the Why close button sitting under the Dynamic Island and status bar on iPhone (viewport-fit=cover needed safe-area insets adding back). Bug fixes: the attention panel silently dropped its last items because it truncated to 6 in authoring order rather than by severity, so the new tutoring over-capacity warning could never appear; workout names from Google Calendar weren't HTML-escaped like every other data field; the Gigs tile showed 'avg £0/gig' whenever avg_gig was absent; and the outer week bars' tooltips ran off-screen on mobile."},
     {v:"1.21.0",d:"2026-07-29",note:"Workouts no longer count today's or future sessions as done — only days that have fully passed count, so the dashboard can't claim a session you haven't actually trained yet. Everything today or later reads as planned, and the wording now says 'on track to hit 3' rather than implying it's already banked. Tutoring load now has a ceiling: more lessons is good up to 12 a week, flagged above that, and treated as a problem past 15 — it earns, but selling more hours works against the autonomy this whole thing is for."},
     {v:"1.20.0",d:"2026-07-29",note:"Added a 'Why' button in the header (spark icon, next to discreet mode) — opens a full-screen overlay that blurs the whole dashboard and reveals Daniel's own written Why, one line at a time."},
     {v:"1.19.0",d:"2026-07-27",note:"Workouts this week now shows what's booked in on the Exercise calendar for the rest of the week, not just what's already been done — scheduled days get a hollow/dashed marker instead of the solid gold 'done' one, and the training attention item now says 'on track' when what's already logged plus what's still booked in covers the target, instead of only ever judging pace on completed sessions. Requires the Apps Script sync to be re-pasted from scripts/apps-script-calendar-sync.gs (widened the workouts window to include the rest of this week, and added a workouts.status column)."},
     {v:"1.18.0",d:"2026-07-27",note:"Added a home-screen app icon (apple-touch-icon + manifest.webmanifest) so 'Add to Home Screen' on mobile gets a real icon instead of a browser-generated screenshot. Locked the viewport to stop pinch-zoom and horizontal scroll/rubber-banding on mobile — the dashboard is meant to be used at its fixed width, not panned around."},
-    {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -905,9 +955,8 @@
   function workoutPace(c, good, great, planned){
     planned=planned||0;
     var day=dayOfWeekIndex(new Date()), total=c+planned;
-    if(c>=great) return {cls:"ok", label:"target hit"};
+    if(c>=great) return {cls:"ok", label:"beat target"};
     if(c>=good) return {cls:"ok", label:"target hit"};
-    if(total>=great) return {cls:"ok", label:"on track"};
     if(total>=good) return {cls:"ok", label:"on track"};
     if(c>=Math.ceil(good*day/7)) return {cls:"ok", label:"on pace"}; // enough done for how far in we are, nothing more booked
     if(total>0) return {cls:"watch", label:"short of target"};
@@ -1033,7 +1082,7 @@
       return '<div class="shabbat-row"><span class="mono">'+shortDate(iso(g.start))+' '+time+'</span><strong>'+esc(g.event)+note+'</strong><span class="flag '+flag[0]+'">'+flag[1]+'</span></div>';
     }).join("")+'</div>':'<div class="small faint">'+(a.summary||"No Shabbat/Yom Tov clashes found.")+'</div>';
   }
-  function attentionItems(sc,c,good,great,lw,lessUp){
+  function attentionItems(sc,c,good,lw,lessUp){ // no `great` — the training item reads off done vs booked, not the stretch target
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
     if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
@@ -1078,12 +1127,18 @@
     if(lp.cls==="behind") items.push({kind:"behind",label:"Tutoring load",msg:lw2+" lessons this week is over the "+LESSONS_CAP+" cap. It earns, but it's buying money with the time you're trying to free up. Cut some back."});
     else if(lp.cls==="watch"&&lw2>LESSONS_SWEET) items.push({kind:"watch",label:"Tutoring load",msg:lw2+" lessons this week is above the "+LESSONS_SWEET+" you want to sit under. Good money, but it's eating the week — don't let it become the norm."});
     else if(lessUp===0) items.push({kind:"watch",label:"Tutoring",msg:"No upcoming lessons are logged for the next 30 days."});
-    return items.slice(0,6);
+    // Rank before truncating. This list is capped at 6 but routinely builds 8, and the pushes are
+    // in authoring order, not importance — so the items added last (tutoring load, growth) were
+    // being silently dropped every time, including the over-capacity warning that only ever fires
+    // when something is actually wrong. Sort is stable in every engine this runs on, so within a
+    // severity band the original order is kept.
+    var RANK={behind:0,watch:1,ok:2};
+    return items.slice().sort(function(a,b){ return (RANK[a.kind]==null?3:RANK[a.kind])-(RANK[b.kind]==null?3:RANK[b.kind]); }).slice(0,6);
   }
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.21.0";
+    document.getElementById("versionLabel").textContent="v1.22.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1110,7 +1165,7 @@
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
     var mathsCurrent=lessonMonthStats(0), mathsDisplay=lessonMonthStats(selectedMathsMonthOffset);
     var lessDone=mathsCurrent.done.length, lessUp=mathsCurrent.planned.length;
-    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,great,lw,lessUp).map(function(item){
+    document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,lw,lessUp).map(function(item){
       return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
 
@@ -1123,7 +1178,9 @@
     var gigsUsable = (GIGS_STATE==="live"||GIGS_STATE==="sample");
     var magicNote = GIGS_STATE==="loading"?"Loading the gig feed…":GIGS_STATE==="error"?"Gig feed unavailable — try Refresh.":"";
     var magicDisplay=(S.gigs&&S.gigs.length)?magicMonthStats(selectedMagicMonthOffset):null;
-    var magicSelected=magicDisplay||{total:m.magic_this_month||0,count:m.magic_this_month_count||0,avg:m.avg_gig||0,bounds:monthBounds(selectedMagicMonthOffset),priorTotal:m.magic_last_month||0};
+    // avg falls back to total/count rather than 0 — nothing guarantees avg_gig is present (sample
+    // data never set it, so the tile read "4 gigs · avg £0/gig" next to a £3,900 month).
+    var magicSelected=magicDisplay||{total:m.magic_this_month||0,count:m.magic_this_month_count||0,avg:m.avg_gig||(m.magic_this_month_count?(m.magic_this_month||0)/m.magic_this_month_count:0),bounds:monthBounds(selectedMagicMonthOffset),priorTotal:m.magic_last_month||0};
     var incomeMagicDisplay=(S.gigs&&S.gigs.length)?magicMonthStats(selectedIncomeMonthOffset):{total:selectedIncomeMonthOffset===0?(m.magic_this_month||0):0,count:selectedIncomeMonthOffset===0?(m.magic_this_month_count||0):0,avg:0,bounds:monthBounds(selectedIncomeMonthOffset),priorTotal:0};
     var incomeMathsDisplay=lessonMonthStats(selectedIncomeMonthOffset);
     var thisMonthValue=gigsUsable?(m.magic_this_month||0):0, thisMonthCount=gigsUsable?(m.magic_this_month_count||0):0;
@@ -1195,7 +1252,9 @@
       // that meaning; the section title + "This week" button already say you're viewing history.
       var cls=on?" on":sched?" scheduled":"";
       var title=on?on.join(", "):sched?sched.join(", ")+" — planned, not done yet":"No workout logged";
-      html+='<div class="wd'+cls+'" title="'+title+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
+      // esc() like every other data-driven bit of markup here — these are raw Google Calendar
+      // titles, so a quote or angle bracket in an event name broke the tile until now.
+      html+='<div class="wd'+cls+'" title="'+esc(title)+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+esc(t)+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
     var doneWk=displayWorkouts.length, planWk=displayWeek===currentWeek?scheduledWorkoutsInWeek(displayWeek).length:0;
@@ -1217,7 +1276,9 @@
       var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
       var wk=weeks[idx],d2=dateObj(wk);d2.setDate(d2.getDate()+6);
       var range=fmtD(wk)+" to "+fmtD(iso(d2));
-      var tooltip=cc+' workout'+(cc!==1?'s':'')+' ('+range+')';
+      // The last bar is the week in progress, so its count is only what's done so far — say that,
+      // rather than letting a part-finished week look like a badly underperforming finished one.
+      var tooltip=cc+' workout'+(cc!==1?'s':'')+(idx===7?' done so far':'')+' ('+range+')';
       return '<div class="bar'+(wk===displayWeek?' selected':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+tooltip+'"><div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
     }).join("");
     document.querySelectorAll("#weekBars .bar").forEach(function(bar){
@@ -1385,7 +1446,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.21.0";
+    document.getElementById("versionLabel").textContent="v1.22.0";
   }
 
   // ---------- modes ----------
@@ -1440,8 +1501,23 @@
 
   // ---------- Why overlay ----------
   var whyBtn=document.getElementById("whyBtn"), whyOverlay=document.getElementById("whyOverlay"), whyClose=document.getElementById("whyClose");
-  function openWhy(){ whyOverlay.classList.add("show"); document.body.style.overflow="hidden"; }
-  function closeWhy(){ whyOverlay.classList.remove("show"); document.body.style.overflow=""; }
+  // Last line lands at 11.2s and gets 4s to read before the shimmer sweeps across everything.
+  // Kept in JS rather than as another CSS animation-delay so closing mid-sequence can cancel it —
+  // otherwise a reopen would fire the old timer's shimmer part-way through the new run.
+  var WHY_SHIMMER_AT=15200, whyShimmerTimer=null;
+  function openWhy(){
+    clearTimeout(whyShimmerTimer);
+    whyOverlay.classList.remove("show","shimmer");
+    void whyOverlay.offsetWidth; // reflow, so re-adding .show restarts every animation from 0
+    whyOverlay.classList.add("show");
+    document.body.style.overflow="hidden";
+    whyShimmerTimer=setTimeout(function(){ whyOverlay.classList.add("shimmer"); },WHY_SHIMMER_AT);
+  }
+  function closeWhy(){
+    clearTimeout(whyShimmerTimer);
+    whyOverlay.classList.remove("show","shimmer");
+    document.body.style.overflow="";
+  }
   whyBtn.addEventListener("click",openWhy);
   whyClose.addEventListener("click",closeWhy);
   whyOverlay.addEventListener("click",function(e){ if(e.target===whyOverlay) closeWhy(); });
