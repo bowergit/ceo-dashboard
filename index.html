@@ -156,6 +156,11 @@
   .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal;width:100%;background:rgba(255,255,255,.05);border-radius:4px;padding:2px 4px}
   .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
   .wd.on .type{color:var(--text);font-weight:700;background:rgba(0,0,0,.16)}
+  /* Scheduled = on the calendar but hasn't happened yet, so it's deliberately hollow/dashed
+     rather than the solid gold fill .on uses for a done workout — same info, different colour
+     so "done" and "not done yet" never look identical. */
+  .wd.scheduled{background:transparent;border:1px dashed var(--gold-dim);color:var(--muted)}
+  .wd.scheduled .type{color:var(--gold-dim);font-weight:600;background:transparent;border:1px dashed rgba(201,162,75,.4)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
   .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
@@ -432,11 +437,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.19.0",d:"2026-07-27",note:"Workouts this week now shows what's booked in on the Exercise calendar for the rest of the week, not just what's already been done — scheduled days get a hollow/dashed marker instead of the solid gold 'done' one, and the training attention item now says 'on track' when what's already logged plus what's still booked in covers the target, instead of only ever judging pace on completed sessions. Requires the Apps Script sync to be re-pasted from scripts/apps-script-calendar-sync.gs (widened the workouts window to include the rest of this week, and added a workouts.status column)."},
     {v:"1.18.0",d:"2026-07-27",note:"Added a home-screen app icon (apple-touch-icon + manifest.webmanifest) so 'Add to Home Screen' on mobile gets a real icon instead of a browser-generated screenshot. Locked the viewport to stop pinch-zoom and horizontal scroll/rubber-banding on mobile — the dashboard is meant to be used at its fixed width, not panned around."},
     {v:"1.17.0",d:"2026-07-27",note:"Details cards (Magic/Maths/Social/Aimee/Recent changes) and month-nav arrows now glide open/closed and slide between months instead of snapping instantly. Weight chart: replaced tiny per-dot hover targets with a single crosshair driven by pointer events across the whole plot, so a tap/drag anywhere near the line (not just exactly on a dot) shows the value — this also fixes it not responding to touch on mobile. Fixed the crosshair/tooltip always painting on top of every dot (previously a later dot could paint over an earlier one's tooltip)."},
     {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."},
-    {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."},
-    {v:"1.16.2",d:"2026-07-19",note:"Live refresh labels now use the successful page fetch time instead of stale metrics.updated_at, so mobile refreshes do not appear stuck on old metrics rows. Social and Aimee cards now open by default with compact event tiles visible immediately."}
+    {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -548,9 +553,14 @@
     ];
     weekPlans.forEach(function(plan,w){
       var start=weekStart(today); start.setDate(start.getDate()-(12-w)*7);
+      var isCurrentWeek=(w===weekPlans.length-1), todayMid=new Date(today); todayMid.setHours(0,0,0,0);
       plan.forEach(function(type,i){
         var d=new Date(start),day=[0,2,4,5][i%4]; d.setDate(start.getDate()+day);
-        wk.push({date:iso(d),type:type});
+        var row={date:iso(d),type:type};
+        // Only the current week carries a status at all — same as the real sync, which only ever
+        // looks that far ahead — so sample mode can demo a mix of done vs. scheduled this week.
+        if(isCurrentWeek){ var dMid=new Date(d); dMid.setHours(0,0,0,0); row.status=dMid<todayMid?"completed":"scheduled"; }
+        wk.push(row);
       });
     });
     var dSame=new Date(today); dSame.setDate(dSame.getDate()-1); wk.push({date:iso(dSame),type:"Pull day"});
@@ -661,8 +671,18 @@
   function kpiMonthNav(kind){
     return '<span class="kpi-nav"><button type="button" data-month="'+kind+'" data-dir="-1" aria-label="Previous month">&lsaquo;</button><button type="button" data-month="'+kind+'" data-dir="1" aria-label="Next month">&rsaquo;</button></span>';
   }
-  function workoutsThisWeek(){ var wk=weekKey(new Date()); return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}).length; }
-  function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk;}); }
+  // A workout row is "scheduled" until its calendar date has passed, then it's treated as done —
+  // same ground truth the rest of this app already used (a calendar event = a workout happened),
+  // just extended one week forward. Checked client-side too (not just trusting the last sync) so
+  // a scheduled row never reads as still-scheduled once its day is in the past.
+  function workoutIsDone(w){
+    if((w.status||"completed")!=="scheduled") return true;
+    var today=new Date(); today.setHours(0,0,0,0);
+    return dateObj(w.date)<today;
+  }
+  function workoutsThisWeek(){ return workoutsInWeek(weekKey(new Date())).length; }
+  function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk&&workoutIsDone(w);}); }
+  function scheduledWorkoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk&&!workoutIsDone(w);}); }
   // Social/Aimee counts are computed client-side from raw event rows, same as workouts — no
   // pre-aggregated count to go stale. Source events come from relationship_events (Supabase,
   // synced daily by Apps Script from the Social/Aimee Google Calendars) or sample fictional data.
@@ -964,9 +984,14 @@
     if(c>=good) items.push({kind:"ok",label:"Good",msg:"Training is on target this week. Keep it repeatable."});
     else{
       var pace=workoutPace(c,good,great);
-      if(pace.label==="on track") items.push({kind:"ok",label:"On track",msg:c+" done so far is on pace for "+good+" this week — keep going."});
-      else if(pace.cls==="watch"&&c>0) items.push({kind:"watch",label:"Watch",msg:"Behind pace for "+good+" this week — log "+(good-c)+" more soon."});
-      else items.push({kind:pace.cls,label:pace.cls==="behind"?"Action":"Watch",msg:"No workouts logged this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of time left.":"Get one in.")});
+      var scheduledCount=scheduledWorkoutsInWeek(weekKey(new Date())).length, plannedTotal=c+scheduledCount;
+      // Calendar-aware: if what's already booked in for the rest of the week covers the target,
+      // that counts as on track even if pure "done so far" pace wouldn't — the sessions exist,
+      // they just haven't happened yet.
+      if(plannedTotal>=good) items.push({kind:"ok",label:"On track",msg:c+" done, "+scheduledCount+" more booked in this week — on pace for "+good+"."});
+      else if(pace.label==="on track") items.push({kind:"ok",label:"On track",msg:c+" done so far is on pace for "+good+" this week — keep going."});
+      else if(pace.cls==="watch"&&c>0) items.push({kind:"watch",label:"Watch",msg:"Behind pace for "+good+" this week"+(scheduledCount>0?" — "+scheduledCount+" more on the calendar, but that's still short of "+good+".":" — log "+(good-c)+" more soon.")});
+      else items.push({kind:pace.cls,label:pace.cls==="behind"?"Action":"Watch",msg:(c===0&&scheduledCount===0?"No workouts logged or scheduled this week yet. ":c===0?scheduledCount+" workout"+(scheduledCount===1?"":"s")+" on the calendar this week but none done yet. ":"No workouts logged this week yet. ")+(dayOfWeekIndex(new Date())<=2?"Plenty of time left.":"Get one in.")});
     }
     if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
@@ -993,7 +1018,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.18.0";
+    document.getElementById("versionLabel").textContent="v1.19.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -1088,14 +1113,22 @@
     var currentWeek=weekKey(new Date()),displayWeek=selectedWorkoutWeek||currentWeek,displayWorkouts=workoutsInWeek(displayWeek),byDay={};
     document.getElementById("workoutWeekTitle").textContent=displayWeek===currentWeek?"Workouts this week":"Workouts "+weekRangeLabel(displayWeek);
     displayWorkouts.forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push(w.type); });
+    // Scheduled (not-yet-happened) workouts only ever exist for the current week — the sync only
+    // looks that far ahead — so a past week navigated to via the bars below never has any.
+    var byDaySched={};
+    if(displayWeek===currentWeek){
+      scheduledWorkoutsInWeek(displayWeek).forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDaySched[dd]=byDaySched[dd]||[]).push(w.type); });
+    }
     var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
-      var on=byDay[i], label=on?on:["Rest"];
+      var on=byDay[i], sched=byDaySched[i], label=on||sched||["Rest"];
       // .selected used to be applied to every day cell whenever viewing a past week, not just
       // the ones with a workout on them — every day got a gold ring regardless of .on, which
       // read as "these days are special" when they weren't. .on (gold fill) already carries
       // that meaning; the section title + "This week" button already say you're viewing history.
-      html+='<div class="wd'+(on?" on":"")+'" title="'+(on?on.join(", "):"No workout logged")+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
+      var cls=on?" on":sched?" scheduled":"";
+      var title=on?on.join(", "):sched?sched.join(", ")+" — scheduled, not done yet":"No workout logged";
+      html+='<div class="wd'+cls+'" title="'+title+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+t+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
     document.getElementById("weekSummary").innerHTML=pv(displayWorkouts.length)+" done · "+(displayWorkouts.length>=good?'<span style="color:var(--ok)">at target</span>':pv(good-displayWorkouts.length)+" to hit "+pv(good))+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
@@ -1280,7 +1313,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.18.0";
+    document.getElementById("versionLabel").textContent="v1.19.0";
   }
 
   // ---------- modes ----------
