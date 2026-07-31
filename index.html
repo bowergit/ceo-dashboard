@@ -170,7 +170,7 @@
   .wd.scheduled .type{color:var(--gold-dim);font-weight:600;background:transparent;border:1px dashed rgba(201,162,75,.4)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
-  .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
+  .bar-current-highlight{position:absolute;bottom:0;right:0;width:calc((100% - 42px) / 8);height:100%;background:rgba(201,162,75,.06);border-radius:4px 4px 0 0;z-index:0;pointer-events:none}
   .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease;z-index:1}
   .bar:hover{opacity:0.8}
   .bar.selected{outline:1px solid var(--gold);outline-offset:2px}
@@ -211,6 +211,7 @@
   .weight-chart .crosshair-line.show{opacity:.85}
   .weight-chart .crosshair-tip{opacity:0;pointer-events:none;transition:opacity .12s ease}
   .weight-chart .crosshair-tip.show{opacity:1}
+  .weight-chart .hit-area{fill:transparent;pointer-events:all;cursor:crosshair}
   table.lessons{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   table.lessons td{padding:6px 4px;border-bottom:1px solid var(--line);color:var(--muted)}
   .tag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600}
@@ -226,6 +227,10 @@
   .yoy-fill{height:100%;background:var(--gold-dim);border-radius:20px}
   .yoy-row.now .yoy-fill{background:var(--gold)}
   .yoy-note{font-size:12px;color:var(--faint);margin-top:12px}
+  .quote-panel{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin:0 0 16px;padding:13px 18px}
+  .quote-panel .label{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
+  .quote-panel .quote{font-family:'Space Grotesk',sans-serif;font-size:15px;line-height:1.35;color:var(--text)}
+  .quote-panel .source{font-size:11px;color:var(--faint);white-space:nowrap}
   .rail-panel{margin-bottom:16px}
   .rail-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
   .rail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:86px}
@@ -236,19 +241,8 @@
   .rail-fill{height:100%;border-radius:20px;background:var(--gold);width:0}
   .rail-fill.ok{background:var(--ok)} .rail-fill.watch{background:var(--watch)} .rail-fill.behind{background:var(--behind)}
   .rail-note{font-size:11px;color:var(--faint);margin-top:7px;line-height:1.3}
-  .agenda-panel{margin:16px 0}
-  .agenda-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
-  .agenda-head h2{font-size:15px}
-  .agenda-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-  .agenda-item{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:74px;display:flex;flex-direction:column;gap:5px}
-  .agenda-item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:var(--faint)}
-  .agenda-item .kind{font-weight:800;text-transform:uppercase;letter-spacing:.05em}
-  .agenda-item strong{font-size:12px;line-height:1.25;color:var(--text);font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .agenda-item .amount{font-family:'IBM Plex Mono';font-size:11px;color:var(--gold)}
-  .agenda-item.work{border-color:rgba(201,162,75,.26)} .agenda-item.lesson{border-color:rgba(63,185,80,.22)} .agenda-item.health{border-color:rgba(210,153,34,.24)} .agenda-item.life{border-color:rgba(139,151,166,.28)}
-  .agenda-empty{color:var(--faint);font-size:12px}
-  @media(max-width:980px){.rail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.agenda-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:560px){.rail-grid,.agenda-list{grid-template-columns:1fr}.kpi{min-height:0}.income-card summary{min-height:0}}
+  @media(max-width:980px){.rail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.quote-panel{grid-template-columns:1fr;gap:5px}.quote-panel .source{white-space:normal}.rail-grid{grid-template-columns:1fr}.kpi{min-height:0}.income-card summary{min-height:0}}
   input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
   input:focus{outline:2px solid var(--gold);outline-offset:1px}
   .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
@@ -376,7 +370,7 @@
       <div>
         <div class="eyebrow">Daniel OS</div>
         <h1>CEO Dashboard</h1>
-        <div class="sub">All in now. Is the trajectory holding?</div>
+        <div class="sub">Money, health, relationships and momentum.</div>
       </div>
     </div>
     <div class="toprt">
@@ -434,6 +428,12 @@
       </div>
     </section>
 
+    <section class="panel quote-panel" id="dailyPromptPanel" title="A daily systems prompt, written locally in the spirit of James Clear and Derek Sivers rather than fetched from a fragile quote feed.">
+      <div class="label">Daily prompt</div>
+      <div class="quote" id="dailyPrompt">Loading...</div>
+      <div class="source" id="dailyPromptSource"></div>
+    </section>
+
     <section class="panel attention" id="attentionPanel">
       <div class="attention-head">
         <h2>Today's attention</h2>
@@ -443,14 +443,6 @@
     </section>
 
     <section class="rail-panel" id="goalRails"></section>
-
-    <section class="panel agenda-panel" id="agendaPanel">
-      <div class="agenda-head">
-        <h2>Next 7 days</h2>
-        <span class="small faint">gigs, lessons, training and life in one scan</span>
-      </div>
-      <div class="agenda-list" id="agendaList"></div>
-    </section>
 
     <div class="grid g4" id="kpiRow"></div>
 
@@ -598,11 +590,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
     {v:"1.25.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets and a unified next-7-days agenda across gigs, lessons, workouts and relationship events. Month toggles keep the glide animation while repeated cards/detail areas now have more stable heights, reducing layout jump."},
     {v:"1.24.0",d:"2026-07-29",note:"Why overlay: the big WHY title starting blurry was transform:scale rendering it small then stretching the bitmap up 6x — switched to animating font-size instead, so it's crisp the whole way through. The closing shimmer no longer makes the text vanish for most of its run: the gradient used transparent at its edges, so outside the travelling highlight band the text had no fill at all — now the edges are currentColor, so the text stays fully readable throughout and the highlight is just a brighter patch passing over it."},
     {v:"1.23.0",d:"2026-07-29",note:"Why overlay: WHY now holds big and centred for a full second before it travels up, and the whole sequence is retimed around that. The closing shimmer fires on every line at once. Week bars now draw a dashed ghost on top of the current week showing where it lands if everything still in the calendar happens, so a planned 5 is visible as a 5. Discreet mode blur is now sized in em rather than a flat 6px, so it scales with the number it is hiding — small figures were still readable before."},
-    {v:"1.22.0",d:"2026-07-29",note:"Why overlay reworked: WHY now opens big and centred before shrinking into place, the lines are much slower and land on their own timings, and once the last line has had time to read a warm gold shimmer sweeps across all of it. Fixed the header and the Why close button sitting under the Dynamic Island and status bar on iPhone (viewport-fit=cover needed safe-area insets adding back). Bug fixes: the attention panel silently dropped its last items because it truncated to 6 in authoring order rather than by severity, so the new tutoring over-capacity warning could never appear; workout names from Google Calendar weren't HTML-escaped like every other data field; the Gigs tile showed 'avg £0/gig' whenever avg_gig was absent; and the outer week bars' tooltips ran off-screen on mobile."},
-    {v:"1.21.0",d:"2026-07-29",note:"Workouts no longer count today's or future sessions as done — only days that have fully passed count, so the dashboard can't claim a session you haven't actually trained yet. Everything today or later reads as planned, and the wording now says 'on track to hit 3' rather than implying it's already banked. Tutoring load now has a ceiling: more lessons is good up to 12 a week, flagged above that, and treated as a problem past 15 — it earns, but selling more hours works against the autonomy this whole thing is for."}
+    {v:"1.22.0",d:"2026-07-29",note:"Why overlay reworked: WHY now opens big and centred before shrinking into place, the lines are much slower and land on their own timings, and once the last line has had time to read a warm gold shimmer sweeps across all of it. Fixed the header and the Why close button sitting under the Dynamic Island and status bar on iPhone (viewport-fit=cover needed safe-area insets adding back). Bug fixes: the attention panel silently dropped its last items because it truncated to 6 in authoring order rather than by severity, so the new tutoring over-capacity warning could never appear; workout names from Google Calendar weren't HTML-escaped like every other data field; the Gigs tile showed 'avg £0/gig' whenever avg_gig was absent; and the outer week bars' tooltips ran off-screen on mobile."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -617,6 +609,24 @@
   function weekKey(d){ var w=weekStart(d); return iso(w); }
   var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   function fmtD(isoStr){ var p=String(isoStr).split("-"); return parseInt(p[2],10)+" "+MONTHS[parseInt(p[1],10)-1]; }
+  var DAILY_PROMPTS=[
+    {text:"What system makes the right thing automatic today?",source:"Clear lens"},
+    {text:"What would you stop doing if you could only keep the essential?",source:"Sivers lens"},
+    {text:"Make the next action so small you cannot dodge it.",source:"Clear lens"},
+    {text:"If it is not a strong yes, what is the graceful no?",source:"Sivers lens"},
+    {text:"Your calendar reveals your strategy better than your intentions.",source:"systems lens"},
+    {text:"Where is complexity pretending to be progress?",source:"Sivers lens"},
+    {text:"Which repeatable habit would make this score boringly good?",source:"Clear lens"}
+  ];
+  function dayOfYear(d){
+    var start=new Date(d.getFullYear(),0,0), today=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    return Math.floor((today-start)/86400000);
+  }
+  function renderDailyPrompt(){
+    var p=DAILY_PROMPTS[dayOfYear(new Date())%DAILY_PROMPTS.length];
+    document.getElementById("dailyPrompt").textContent=p.text;
+    document.getElementById("dailyPromptSource").textContent=p.source;
+  }
 
   // ---------- live magic gigs feed (published Google Sheet CSV; trimmed, no client names) ----------
   var GIG_CACHE=null;
@@ -875,6 +885,13 @@
     if(n>0) return {cls:"ok", label:"building"};
     return {cls:"watch", label:"empty week"};
   }
+  function lessonLoadTitle(n){
+    if(n>LESSONS_CAP) return n+" lessons this week is over the "+LESSONS_CAP+" lesson cap. It earns money, but it crowds out the autonomy goal.";
+    if(n>LESSONS_SWEET) return n+" lessons this week is a heavy week. Good money, but watch the time cost.";
+    if(n>=8) return n+" lessons this week is a strong teaching week without being over capacity.";
+    if(n>0) return "Building means there are lessons in the week, but it is not yet a full teaching week.";
+    return "No lessons are logged this week.";
+  }
   function rateForLesson(studentId,date,rateHistory){
     var rows=(rateHistory||[]).filter(function(r){return r.student_id===studentId&&r.effective_from_date<=date;})
       .sort(function(a,b){return a.effective_from_date<b.effective_from_date?1:-1;});
@@ -1028,6 +1045,13 @@
     if(total>0) return {cls:"watch", label:"short of target"};
     return {cls: day<=2?"watch":"behind", label:"nothing booked"};
   }
+  function workoutPillTitle(done,good,great,planned){
+    planned=planned||0;
+    if(done>=great) return done+" workouts are done this week. That beats the stretch target of "+great+".";
+    if(done>=good) return "Target hit means "+done+" workouts are already done against the weekly target of "+good+".";
+    if(done+planned>=good) return done+" done and "+planned+" planned. You are on track if the planned sessions actually happen.";
+    return done+" done and "+planned+" planned. You need "+Math.max(0,good-done-planned)+" more booked to hit "+good+".";
+  }
   function timedGigs(){
     var gigs=Array.isArray(S.timedGigs)?S.timedGigs:[];
     return gigs.map(function(g){
@@ -1170,29 +1194,6 @@
     ];
     document.getElementById("goalRails").innerHTML='<div class="rail-grid">'+rails.join("")+'</div>';
   }
-  function relDayLabel(dateISO){
-    var d=dateObj(dateISO),n=new Date(),today=iso(n),tomorrow=iso(new Date(n.getFullYear(),n.getMonth(),n.getDate()+1));
-    if(dateISO===today) return "today";
-    if(dateISO===tomorrow) return "tomorrow";
-    return shortDate(dateISO);
-  }
-  function agendaRows(m){
-    var now=new Date(),start=todayISO(),end=iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()+7)),rows=[];
-    function inRange(date){ return date&&date>=start&&date<end; }
-    function add(date,kind,cls,title,amount){ if(inRange(date)) rows.push({date:date,kind:kind,cls:cls,title:title||kind,amount:amount}); }
-    var magicRows=(S.gigs&&S.gigs.length)?S.gigs.map(function(g){return {date:g.event,title:g.name,amount:g.fee};}):(m.magic_upcoming||[]);
-    magicRows.forEach(function(g){ add(g.date||g.event,"gig","work",g.title||g.event||g.name,g.amount||g.fee); });
-    (S.lessons||[]).forEach(function(l){ if(l.status==="upcoming") add(l.date,"lesson","lesson",l.student||"Lesson",l.amount); });
-    (S.workouts||[]).forEach(function(w){ add(w.date,"workout","health",w.type||"Workout",null); });
-    (S.relationshipEvents||[]).forEach(function(e){ add(e.date,e.source==="aimee"?"Aimee":"social","life",e.title||"Event",null); });
-    return rows.sort(function(a,b){ return a.date===b.date? a.kind.localeCompare(b.kind) : a.date>b.date?1:-1; }).slice(0,8);
-  }
-  function renderAgenda(m){
-    var rows=agendaRows(m);
-    document.getElementById("agendaList").innerHTML=rows.length?rows.map(function(r){
-      return '<div class="agenda-item '+r.cls+'"><div class="meta"><span class="kind">'+esc(r.kind)+'</span><span>'+relDayLabel(r.date)+'</span></div><strong title="'+esc(r.title)+'">'+esc(r.title)+'</strong>'+(r.amount?'<span class="amount">'+pv(gbp(r.amount))+'</span>':'')+'</div>';
-    }).join(""):'<div class="agenda-empty">Nothing dated in the next 7 days.</div>';
-  }
   function attentionItems(sc,c,good,lw,lessUp){ // no `great` — the training item reads off done vs booked, not the stretch target
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
@@ -1249,8 +1250,9 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.25.0";
+    document.getElementById("versionLabel").textContent="v1.26.0";
     paintSourceBadges();
+    renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
     var arc=document.getElementById("gaugeArc"),full=327;
@@ -1258,8 +1260,8 @@
     arc.setAttribute("stroke",statusColor(sc.overall));
 
     var tp=document.getElementById("trackPill");
-    var st = sc.overall>=7? ["ON TRACK","var(--ok)","rgba(63,185,80,.14)"] : sc.overall>=5? ["ON THE WAY","var(--watch)","rgba(210,153,34,.14)"] : ["BEHIND","var(--behind)","rgba(248,81,73,.14)"];
-    tp.textContent=st[0]; tp.style.color=st[1]; tp.style.background=st[2]; tp.style.display="inline-flex";
+    var st = sc.overall>=7? ["ON TRACK","var(--ok)","rgba(63,185,80,.14)","Income, momentum and discipline are collectively above target."] : sc.overall>=5? ["BUILDING","var(--watch)","rgba(210,153,34,.14)","Building means the system is moving, but at least one of income, momentum or discipline is still below target."] : ["BEHIND","var(--behind)","rgba(248,81,73,.14)","Behind means the dashboard sees a meaningful gap against the current targets."];
+    tp.textContent=st[0]; tp.title=st[3]; tp.style.color=st[1]; tp.style.background=st[2]; tp.style.display="inline-flex";
 
     document.getElementById("verdictLead").textContent=vd.lead;
     document.getElementById("verdictWhy").innerHTML=vd.why;
@@ -1280,7 +1282,6 @@
       return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
     renderGoalRails(sc,c,good,great,lw);
-    renderAgenda(m);
 
     // "This month" = every gig dated in the current calendar month, past and future — a gig already
     // booked for later this month is confirmed money, so the month total doesn't get judged as
@@ -1308,11 +1309,11 @@
     var kpis=[
       {lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
       {lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
-      {lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
+      {lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
       {lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
-      {lab:"Trajectory",big:gbp(rev.totalProjected),money:true,foot:"if pace holds: magic "+pv(gbp(rev.magicProjected))+" · maths "+pv(gbp(rev.mathsProjected))},
-      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
-      {lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken"))},big:shBig,foot:(sh.summary||"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
+      {lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
+      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
+      {lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken")),title:sh.summary||"Hebcal London audit"},big:shBig,foot:((sh.brokenSlots||0)>0?pv(sh.brokenSlots)+" broken this month":"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
     document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(magicCardValue)):"--";
@@ -1340,9 +1341,9 @@
     }
     document.getElementById("kpiRow").innerHTML=kpis.map(function(k){
       var pt=k.pill?(/\d/.test(k.pill.t)?pv(k.pill.t):k.pill.t):'';
-      var p=k.pill?'<span class="pill '+k.pill.c+'">'+pt+'</span>':'';
+      var p=k.pill?'<span class="pill '+k.pill.c+'"'+(k.pill.title?' title="'+esc(k.pill.title)+'"':'')+'>'+pt+'</span>':'';
       var nav=k.nav?kpiMonthNav(k.nav):'';
-      return '<div class="kpi"><div class="lab"><span>'+k.lab+' '+p+'</span>'+nav+'</div><div class="big'+(k.money?' money':'')+'">'+pv(k.big)+'</div><div class="foot">'+k.foot+'</div></div>';
+      return '<div class="kpi"'+(k.title?' title="'+esc(k.title)+'"':'')+'><div class="lab"><span>'+k.lab+' '+p+'</span>'+nav+'</div><div class="big'+(k.money?' money':'')+'">'+pv(k.big)+'</div><div class="foot">'+k.foot+'</div></div>';
     }).join("");
     renderShabbatAudit();
 
@@ -1372,7 +1373,7 @@
     document.getElementById("weekDots").innerHTML=html;
     var doneWk=displayWorkouts.length, planWk=displayWeek===currentWeek?scheduledWorkoutsInWeek(displayWeek).length:0;
     var summaryTail;
-    if(doneWk>=good) summaryTail='<span style="color:var(--ok)">target hit</span>';
+    if(doneWk>=good) summaryTail='<span style="color:var(--ok)" title="'+esc(workoutPillTitle(doneWk,good,great,planWk))+'">target hit</span>';
     else if(doneWk+planWk>=good) summaryTail='<span style="color:var(--ok)">on track to hit '+pv(good)+'</span>';
     else summaryTail=pv(good-doneWk-planWk)+" more to book to hit "+pv(good);
     document.getElementById("weekSummary").innerHTML=pv(doneWk)+" done"+(planWk>0?" · "+pv(planWk)+" planned":"")+" · "+summaryTail+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
@@ -1388,7 +1389,7 @@
     // past this Saturday. Scale headroom includes it so a big planned week isn't drawn off the top.
     var BARS_H=64;
     var mx=Math.max(4,Math.max.apply(null,counts),counts[7]+plannedWk);
-    document.getElementById("weekBars").innerHTML=counts.map(function(cc,idx){
+    document.getElementById("weekBars").innerHTML='<div class="bar-current-highlight"></div>'+counts.map(function(cc,idx){
       var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
       var wk=weeks[idx],d2=dateObj(wk);d2.setDate(d2.getDate()+6);
       var range=fmtD(wk)+" to "+fmtD(iso(d2));
@@ -1464,6 +1465,7 @@
         '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
         '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>'+
+        '<rect class="hit-area" x="0" y="0" width="320" height="118"></rect>'+
         '<line class="crosshair-line" id="weightCrosshairLine" x1="0" y1="'+top+'" x2="0" y2="'+(top+h)+'"></line>'+
         '<g class="crosshair-tip" id="weightCrosshairTip">'+
           '<rect id="weightCrosshairRect" x="0" y="0" width="0" height="18" rx="4" fill="var(--panel-2)" stroke="var(--gold-dim)" stroke-width="1"></rect>'+
@@ -1558,7 +1560,8 @@
     document.getElementById("verdictWhy").textContent="Your database is live and empty. Add rows to the metrics, workouts, weights and lessons tables and this fills in.";
     document.getElementById("subscores").innerHTML="";
     document.getElementById("kpiRow").innerHTML="";
-    ["attentionList","goalRails","agendaList","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
+    renderDailyPrompt();
+    ["attentionList","goalRails","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
@@ -1566,7 +1569,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.25.0";
+    document.getElementById("versionLabel").textContent="v1.26.0";
   }
 
   // ---------- modes ----------
@@ -1651,7 +1654,10 @@
   // fall back to after lifting a finger — leave the last value showing until the next touch.
   var weightChartEl=document.getElementById("weightChart");
   if(weightChartEl){
-    weightChartEl.addEventListener("pointerdown",function(e){ updateWeightCrosshair(e.clientX); });
+    weightChartEl.addEventListener("pointerdown",function(e){
+      if(e.pointerType!=="mouse"&&weightChartEl.setPointerCapture) weightChartEl.setPointerCapture(e.pointerId);
+      updateWeightCrosshair(e.clientX);
+    });
     weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX); });
     weightChartEl.addEventListener("pointerleave",function(e){ if(e.pointerType==="mouse") hideWeightCrosshair(); });
   }
