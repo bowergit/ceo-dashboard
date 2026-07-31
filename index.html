@@ -135,7 +135,10 @@
   .attention-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
   .attention-head h2{font-size:15px}
   .attention-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-  .attention-item{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--gold-dim);border-radius:8px;padding:11px 12px;min-height:82px}
+  .attention-item{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--gold-dim);border-radius:8px;padding:11px 12px;min-height:82px;transition:background-color .15s ease,border-color .2s cubic-bezier(.2,.8,.2,1),box-shadow .25s cubic-bezier(.2,.8,.2,1)}
+  .attention-item[data-target]{cursor:pointer}
+  .attention-item[data-target]:hover{background:#202733;border-color:rgba(201,162,75,.35)}
+  .attention-item:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .attention-item.ok{border-left-color:var(--ok)} .attention-item.watch{border-left-color:var(--watch)} .attention-item.behind{border-left-color:var(--behind)}
   .attention-item .kind{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
   .attention-item.ok .kind{color:var(--ok)} .attention-item.watch .kind{color:var(--watch)} .attention-item.behind .kind{color:var(--behind)}
@@ -241,6 +244,8 @@
   .rail-fill{height:100%;border-radius:20px;background:var(--gold);width:0}
   .rail-fill.ok{background:var(--ok)} .rail-fill.watch{background:var(--watch)} .rail-fill.behind{background:var(--behind)}
   .rail-note{font-size:11px;color:var(--faint);margin-top:7px;line-height:1.3}
+  .flash-target{transition:border-color .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s cubic-bezier(.2,.8,.2,1)}
+  .is-flashed{border-color:var(--gold)!important;box-shadow:0 16px 40px -12px rgba(0,0,0,.32),0 0 0 3px rgba(201,162,75,.2)!important}
   @media(max-width:980px){.rail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:560px){.quote-panel{grid-template-columns:1fr;gap:5px}.quote-panel .source{white-space:normal}.rail-grid{grid-template-columns:1fr}.kpi{min-height:0}.income-card summary{min-height:0}}
   input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
@@ -446,7 +451,7 @@
 
     <div class="grid g4" id="kpiRow"></div>
 
-    <section class="panel shabbat-panel" id="shabbatPanel">
+    <section class="panel shabbat-panel flash-target" id="shabbatPanel">
       <div class="shabbat-head">
         <div>
           <h2>Shabbat and festivals</h2>
@@ -459,7 +464,7 @@
 
     <div class="sect-title"><h2>Income</h2><span class="small faint">magic and maths, kept apart</span></div>
     <div class="grid g2">
-      <details class="income-card" id="magicCard">
+      <details class="income-card flash-target" id="magicCard">
         <summary>
         <div class="lab">Magic <span class="faint" style="font-weight:400">· close up magic and hosting</span> <span id="magicBadge"></span></div>
         <div class="big money" id="magicIncome">--</div>
@@ -467,7 +472,7 @@
         </summary>
         <div class="income-detail" id="magicDetail"></div>
       </details>
-      <details class="income-card" id="mathsCard">
+      <details class="income-card flash-target" id="mathsCard">
         <summary>
         <div class="lab">Maths <span class="faint" style="font-weight:400">· tutoring</span> <span id="mathsBadge"></span></div>
         <div class="big money" id="mathsIncome">--</div>
@@ -479,14 +484,14 @@
 
     <div class="sect-title"><h2>Health and discipline <span id="healthBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
     <div class="grid g2">
-      <div class="panel">
+      <div class="panel flash-target" id="workoutPanel">
         <div class="lab muted small" id="workoutWeekTitle">Workouts this week</div>
         <div class="weekdots" id="weekDots"></div>
         <div class="small muted" id="weekSummary" style="margin-top:8px"></div>
         <div class="bars" id="weekBars"></div>
         <div class="small faint" style="margin-top:24px">Last 8 weeks.</div>
       </div>
-      <div class="panel">
+      <div class="panel flash-target" id="weightPanel">
         <div class="lab muted small">Weight <span class="faint" id="weightBaselineLabel">· baseline 90 kg</span></div>
         <div class="weight-now" id="weightNow">--</div>
         <div class="small" id="weightDelta" style="margin-top:2px"></div>
@@ -496,14 +501,14 @@
 
     <div class="sect-title"><h2>Social <span id="socialBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 3-5 social events a month · 1+ a week with Aimee</span></div>
     <div class="grid g2">
-      <details class="income-card relationship-card" id="socialCard">
+      <details class="income-card relationship-card flash-target" id="socialCard">
         <summary>
         <div class="lab">Social <span class="faint" style="font-weight:400">· this month</span></div>
         <div class="summary-main"><div class="summary-count"><div class="big" id="socialBig">--</div><div class="foot" id="socialFoot"></div></div><div class="summary-tiles" id="socialTiles"></div></div>
         </summary>
         <div class="income-detail" id="socialDetail"></div>
       </details>
-      <details class="income-card relationship-card" id="aimeeCard">
+      <details class="income-card relationship-card flash-target" id="aimeeCard">
         <summary>
         <div class="lab">Aimee <span class="faint" style="font-weight:400">· this week</span></div>
         <div class="summary-main"><div class="summary-count"><div class="big" id="aimeeBig">--</div><div class="foot" id="aimeeFoot"></div></div><div class="summary-tiles" id="aimeeTiles"></div></div>
@@ -514,7 +519,7 @@
 
     <div class="sect-title"><h2>Trajectory</h2><span class="small faint">year-end projection plus year-on-year context</span></div>
     <div class="grid g2">
-      <div class="panel">
+      <div class="panel flash-target" id="trajectoryPanel">
         <div class="lab muted small">Magic turnover by this point in the year</div>
         <div class="yoy-list" id="revYoy"></div>
       </div>
@@ -590,11 +595,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
     {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
     {v:"1.25.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets and a unified next-7-days agenda across gigs, lessons, workouts and relationship events. Month toggles keep the glide animation while repeated cards/detail areas now have more stable heights, reducing layout jump."},
     {v:"1.24.0",d:"2026-07-29",note:"Why overlay: the big WHY title starting blurry was transform:scale rendering it small then stretching the bitmap up 6x — switched to animating font-size instead, so it's crisp the whole way through. The closing shimmer no longer makes the text vanish for most of its run: the gradient used transparent at its edges, so outside the travelling highlight band the text had no fill at all — now the edges are currentColor, so the text stays fully readable throughout and the highlight is just a brighter patch passing over it."},
-    {v:"1.23.0",d:"2026-07-29",note:"Why overlay: WHY now holds big and centred for a full second before it travels up, and the whole sequence is retimed around that. The closing shimmer fires on every line at once. Week bars now draw a dashed ghost on top of the current week showing where it lands if everything still in the calendar happens, so a planned 5 is visible as a 5. Discreet mode blur is now sized in em rather than a flat 6px, so it scales with the number it is hiding — small figures were still readable before."},
-    {v:"1.22.0",d:"2026-07-29",note:"Why overlay reworked: WHY now opens big and centred before shrinking into place, the lines are much slower and land on their own timings, and once the last line has had time to read a warm gold shimmer sweeps across all of it. Fixed the header and the Why close button sitting under the Dynamic Island and status bar on iPhone (viewport-fit=cover needed safe-area insets adding back). Bug fixes: the attention panel silently dropped its last items because it truncated to 6 in authoring order rather than by severity, so the new tutoring over-capacity warning could never appear; workout names from Google Calendar weren't HTML-escaped like every other data field; the Gigs tile showed 'avg £0/gig' whenever avg_gig was absent; and the outer week bars' tooltips ran off-screen on mobile."}
+    {v:"1.23.0",d:"2026-07-29",note:"Why overlay: WHY now holds big and centred for a full second before it travels up, and the whole sequence is retimed around that. The closing shimmer fires on every line at once. Week bars now draw a dashed ghost on top of the current week showing where it lands if everything still in the calendar happens, so a planned 5 is visible as a 5. Discreet mode blur is now sized in em rather than a flat 6px, so it scales with the number it is hiding — small figures were still readable before."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -626,6 +631,31 @@
     var p=DAILY_PROMPTS[dayOfYear(new Date())%DAILY_PROMPTS.length];
     document.getElementById("dailyPrompt").textContent=p.text;
     document.getElementById("dailyPromptSource").textContent=p.source;
+  }
+  var FLASH_TIMERS={};
+  function flashTo(id,ms){
+    var el=document.getElementById(id); if(!el) return;
+    ms=ms||2200;
+    requestAnimationFrame(function(){
+      var smooth=!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      el.scrollIntoView({behavior:smooth?"smooth":"auto",block:"center"});
+      el.classList.remove("is-flashed");
+      void el.offsetWidth;
+      el.classList.add("is-flashed");
+      clearTimeout(FLASH_TIMERS[id]);
+      FLASH_TIMERS[id]=setTimeout(function(){ el.classList.remove("is-flashed"); delete FLASH_TIMERS[id]; },ms);
+    });
+  }
+  function wireAttentionJumps(){
+    var list=document.getElementById("attentionList"); if(!list||list._jumpBound) return;
+    list._jumpBound=true;
+    function activate(card){ var target=card&&card.getAttribute("data-target"); if(target) flashTo(target); }
+    list.addEventListener("click",function(e){ activate(e.target.closest(".attention-item[data-target]")); });
+    list.addEventListener("keydown",function(e){
+      if(e.key!=="Enter"&&e.key!==" ") return;
+      var card=e.target.closest(".attention-item[data-target]"); if(!card) return;
+      e.preventDefault(); activate(card);
+    });
   }
 
   // ---------- live magic gigs feed (published Google Sheet CSV; trimmed, no client names) ----------
@@ -1197,48 +1227,48 @@
   function attentionItems(sc,c,good,lw,lessUp){ // no `great` — the training item reads off done vs booked, not the stretch target
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
-    if(bw>0) items.push({kind:"ok",label:"Booked",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
-    else items.push({kind:"watch",label:"Booked",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
+    if(bw>0) items.push({kind:"ok",label:"Booked",target:"kpi-gigs",msg:bw+" new booking"+(bw===1?"":"s")+" this week"+(bm>bw?" ("+bm+" this month)":"")+". That counts as a good week."});
+    else items.push({kind:"watch",label:"Booked",target:"kpi-gigs",msg:"No new bookings logged this week"+(bm>0?", "+bm+" this month":"")+". Get one in the diary."});
     var relUsable=HEALTH_STATE==="live"||HEALTH_STATE==="sample";
     if(relUsable){
       var aimeeCount=aimeeEventsThisWeek().length, aimeeTarget=m.aimee_target_week||1;
       var ap=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
-      if(ap.label==="on track") items.push({kind:"ok",label:"Aimee",msg:aimeeCount+" thing"+(aimeeCount===1?"":"s")+" with Aimee logged this week. On track."});
-      else items.push({kind:ap.cls,label:"Aimee",msg:ap.cls==="behind"?"Nothing with Aimee logged this week — get something in.":"Nothing with Aimee yet this week, but there's still time."});
+      if(ap.label==="on track") items.push({kind:"ok",label:"Aimee",target:"aimeeCard",msg:aimeeCount+" thing"+(aimeeCount===1?"":"s")+" with Aimee logged this week. On track."});
+      else items.push({kind:ap.cls,label:"Aimee",target:"aimeeCard",msg:ap.cls==="behind"?"Nothing with Aimee logged this week — get something in.":"Nothing with Aimee yet this week, but there's still time."});
 
       var socialCount=socialEventsThisMonth().length, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5;
       var sp=socialPace(socialCount,socialMin,socialMax,new Date());
-      if(sp.cls==="ok") items.push({kind:"ok",label:"Social",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
-      else items.push({kind:sp.cls,label:"Social",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
+      if(sp.cls==="ok") items.push({kind:"ok",label:"Social",target:"socialCard",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
+      else items.push({kind:sp.cls,label:"Social",target:"socialCard",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
     }
     var planned=scheduledWorkoutsInWeek(weekKey(new Date())).length, bookedTotal=c+planned;
-    if(c>=good) items.push({kind:"ok",label:"Training",msg:c+" done this week — target of "+good+" already hit. Keep it repeatable."});
-    else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",msg:c+" done, "+planned+" still in the diary — on track to hit "+good+" if you show up."});
-    else if(bookedTotal>0) items.push({kind:"watch",label:"Training",msg:c+" done, "+planned+" booked — that's "+(good-bookedTotal)+" short of "+good+". Get "+(good-bookedTotal)+" more in the calendar."});
-    else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+good+" in the diary.":"Book "+good+" now before the week runs out.")});
-    if(lw==null) items.push({kind:"watch",label:"Watch",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
+    if(c>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done this week — target of "+good+" already hit. Keep it repeatable."});
+    else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done, "+planned+" still in the diary — on track to hit "+good+" if you show up."});
+    else if(bookedTotal>0) items.push({kind:"watch",label:"Training",target:"kpi-workouts",msg:c+" done, "+planned+" booked — that's "+(good-bookedTotal)+" short of "+good+". Get "+(good-bookedTotal)+" more in the calendar."});
+    else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",target:"kpi-workouts",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+good+" in the diary.":"Book "+good+" now before the week runs out.")});
+    if(lw==null) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
       var trend=weightTrend();
       if(trend!=null){
-        if(trend<=0) items.push({kind:"ok",label:"Good",msg:"Weight is "+(trend<0?Math.abs(trend)+"kg down":"flat")+" vs a week ago. Good trajectory."});
-        else if(trend<=1) items.push({kind:"watch",label:"Watch",msg:"Weight is up "+trend+"kg vs a week ago. Keep an eye on it."});
-        else items.push({kind:"behind",label:"Action",msg:"Weight is up "+trend+"kg vs a week ago. Get back on track this week."});
+        if(trend<=0) items.push({kind:"ok",label:"Good",target:"weightPanel",msg:"Weight is "+(trend<0?Math.abs(trend)+"kg down":"flat")+" vs a week ago. Good trajectory."});
+        else if(trend<=1) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Keep an eye on it."});
+        else items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Get back on track this week."});
       } else {
         var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
-        if(diff>4) items.push({kind:"behind",label:"Action",msg:"Weight is +"+diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
-        else if(diff>2) items.push({kind:"watch",label:"Watch",msg:"Weight is +"+diff+"kg vs baseline."});
-        else items.push({kind:"ok",label:"Good",msg:"Weight is close to baseline."});
+        if(diff>4) items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is +"+diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
+        else if(diff>2) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is +"+diff+"kg vs baseline."});
+        else items.push({kind:"ok",label:"Good",target:"weightPanel",msg:"Weight is close to baseline."});
       }
     }
-    if(income<survival) items.push({kind:"behind",label:"Action",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
-    else if(income<full) items.push({kind:"watch",label:"Watch",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
-    else items.push({kind:"ok",label:"Good",msg:"Monthly income is past the full lifestyle line."});
-    if(sc.growth<0) items.push({kind:"behind",label:"Action",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
-    else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",msg:"Year-on-year growth is positive but not decisive yet."});
+    if(income<survival) items.push({kind:"behind",label:"Action",target:"kpi-income",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
+    else if(income<full) items.push({kind:"watch",label:"Watch",target:"kpi-income",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
+    else items.push({kind:"ok",label:"Good",target:"kpi-income",msg:"Monthly income is past the full lifestyle line."});
+    if(sc.growth<0) items.push({kind:"behind",label:"Action",target:"trajectoryPanel",msg:"Turnover is down "+Math.abs(Math.round(sc.growth*100))+"% versus this point last year."});
+    else if(sc.growth<0.1) items.push({kind:"watch",label:"Watch",target:"trajectoryPanel",msg:"Year-on-year growth is positive but not decisive yet."});
     var lw2=lessonsThisWeek(), lp=lessonLoadPace(lw2);
-    if(lp.cls==="behind") items.push({kind:"behind",label:"Tutoring load",msg:lw2+" lessons this week is over the "+LESSONS_CAP+" cap. It earns, but it's buying money with the time you're trying to free up. Cut some back."});
-    else if(lp.cls==="watch"&&lw2>LESSONS_SWEET) items.push({kind:"watch",label:"Tutoring load",msg:lw2+" lessons this week is above the "+LESSONS_SWEET+" you want to sit under. Good money, but it's eating the week — don't let it become the norm."});
-    else if(lessUp===0) items.push({kind:"watch",label:"Tutoring",msg:"No upcoming lessons are logged for the next 30 days."});
+    if(lp.cls==="behind") items.push({kind:"behind",label:"Tutoring load",target:"kpi-lessons",msg:lw2+" lessons this week is over the "+LESSONS_CAP+" cap. It earns, but it's buying money with the time you're trying to free up. Cut some back."});
+    else if(lp.cls==="watch"&&lw2>LESSONS_SWEET) items.push({kind:"watch",label:"Tutoring load",target:"kpi-lessons",msg:lw2+" lessons this week is above the "+LESSONS_SWEET+" you want to sit under. Good money, but it's eating the week — don't let it become the norm."});
+    else if(lessUp===0) items.push({kind:"watch",label:"Tutoring",target:"kpi-lessons",msg:"No upcoming lessons are logged for the next 30 days."});
     // Rank before truncating. This list is capped at 6 but routinely builds 8, and the pushes are
     // in authoring order, not importance — so the items added last (tutoring load, growth) were
     // being silently dropped every time, including the over-capacity warning that only ever fires
@@ -1250,7 +1280,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.26.0";
+    document.getElementById("versionLabel").textContent="v1.27.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1279,8 +1309,10 @@
     var mathsCurrent=lessonMonthStats(0), mathsDisplay=lessonMonthStats(selectedMathsMonthOffset);
     var lessDone=mathsCurrent.done.length, lessUp=mathsCurrent.planned.length;
     document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,lw,lessUp).map(function(item){
-      return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
+      var target=item.target?' data-target="'+esc(item.target)+'" role="button" tabindex="0" title="Jump to '+esc(item.label)+'"':'';
+      return '<div class="attention-item '+item.kind+'"'+target+'><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
+    wireAttentionJumps();
     renderGoalRails(sc,c,good,great,lw);
 
     // "This month" = every gig dated in the current calendar month, past and future — a gig already
@@ -1307,13 +1339,13 @@
     var sh=S.shabbatAudit||{},shClass=sh.score==null?"watch":sh.score>=1?"ok":sh.score>=0.5?"watch":"behind";
     var shBig=sh.slotsTotal?((sh.keptSlots||0)+" / "+sh.slotsTotal):(sh.score==null?"--":sh.score.toFixed(1)+" / 1");
     var kpis=[
-      {lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
-      {lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
-      {lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
-      {lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
-      {lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
-      {lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
-      {lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken")),title:sh.summary||"Hebcal London audit"},big:shBig,foot:((sh.brokenSlots||0)>0?pv(sh.brokenSlots)+" broken this month":"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
+      {id:"kpi-income",lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
+      {id:"kpi-gigs",lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
+      {id:"kpi-lessons",lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
+      {id:"kpi-ytd",lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
+      {id:"kpi-outlook",lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
+      {id:"kpi-workouts",lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
+      {id:"kpi-shabbat",lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken")),title:sh.summary||"Hebcal London audit"},big:shBig,foot:((sh.brokenSlots||0)>0?pv(sh.brokenSlots)+" broken this month":"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
     document.getElementById("magicIncome").innerHTML=gigsUsable?pv(gbp(magicCardValue)):"--";
@@ -1343,7 +1375,7 @@
       var pt=k.pill?(/\d/.test(k.pill.t)?pv(k.pill.t):k.pill.t):'';
       var p=k.pill?'<span class="pill '+k.pill.c+'"'+(k.pill.title?' title="'+esc(k.pill.title)+'"':'')+'>'+pt+'</span>':'';
       var nav=k.nav?kpiMonthNav(k.nav):'';
-      return '<div class="kpi"'+(k.title?' title="'+esc(k.title)+'"':'')+'><div class="lab"><span>'+k.lab+' '+p+'</span>'+nav+'</div><div class="big'+(k.money?' money':'')+'">'+pv(k.big)+'</div><div class="foot">'+k.foot+'</div></div>';
+      return '<div class="kpi flash-target" id="'+k.id+'"'+(k.title?' title="'+esc(k.title)+'"':'')+'><div class="lab"><span>'+k.lab+' '+p+'</span>'+nav+'</div><div class="big'+(k.money?' money':'')+'">'+pv(k.big)+'</div><div class="foot">'+k.foot+'</div></div>';
     }).join("");
     renderShabbatAudit();
 
@@ -1569,7 +1601,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.26.0";
+    document.getElementById("versionLabel").textContent="v1.27.0";
   }
 
   // ---------- modes ----------
