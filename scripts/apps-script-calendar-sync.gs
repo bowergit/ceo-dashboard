@@ -114,11 +114,18 @@ var Sync = {
 
     var now = new Date();
     var windowStart = Sync.addDays(now, -CONFIG.WORKOUTS.LOOKBACK_DAYS);
-    var windowEnd = now;
+    // Sunday-start week, matching index.html's weekStart(). Past days in the window are always
+    // "completed" (they've already happened); today/future days in the CURRENT week only are
+    // synced as "scheduled" so the dashboard can show them before they've happened. Everything
+    // beyond this week is still excluded — we don't want next week's calendar plan leaking in.
+    var dow = now.getDay();
+    var weekStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    var weekEndDate = Sync.addDays(weekStartDate, 6); // Saturday of this week
+    var calendarWindowEnd = Sync.addDays(weekStartDate, 7); // exclusive upper bound for getEvents (next Sunday 00:00)
     var startDate = Sync.dateKey(windowStart);
-    var endDate = Sync.dateKey(windowEnd);
+    var endDate = Sync.dateKey(weekEndDate);
     var calendar = Sync.getCalendarOrThrow(CONFIG.CALENDARS.EXERCISE, "Exercise");
-    var events = calendar.getEvents(windowStart, windowEnd);
+    var events = calendar.getEvents(windowStart, calendarWindowEnd);
     var rows = [];
     var seen = {};
 
@@ -136,7 +143,8 @@ var Sync = {
 
       var row = {
         date: Sync.dateKey(event.getStartTime()),
-        type: title
+        type: title,
+        status: event.getStartTime().getTime() <= now.getTime() ? "completed" : "scheduled"
       };
       var key = row.date + "|" + row.type;
       if (!seen[key]) {
@@ -175,14 +183,14 @@ var Sync = {
     }
 
     sheet.clearContents();
-    sheet.getRange(1, 1, 1, 2).setValues([["date", "event_name"]]);
+    sheet.getRange(1, 1, 1, 3).setValues([["date", "event_name", "status"]]);
 
     if (rows.length === 0) return;
 
     var sheetRows = rows.map(function(row) {
-      return [row.date, row.type];
+      return [row.date, row.type, row.status];
     });
-    sheet.getRange(2, 1, sheetRows.length, 2).setValues(sheetRows);
+    sheet.getRange(2, 1, sheetRows.length, 3).setValues(sheetRows);
   },
 
   // 2) Social + Aimee calendars -> public.relationship_events
