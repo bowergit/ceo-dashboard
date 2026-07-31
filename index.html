@@ -74,7 +74,7 @@
   .g4{grid-template-columns:repeat(4,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
   @media(max-width:860px){.g4{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
   @media(max-width:520px){.g4{grid-template-columns:1fr}}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;cursor:default}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;cursor:default;min-height:126px}
   .kpi .lab{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
   .kpi .big{font-family:'Space Grotesk';font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.01em}
   .kpi .big.money{font-family:'IBM Plex Mono';font-size:26px;font-weight:600}
@@ -83,7 +83,7 @@
   .kpi-nav button{width:20px;height:20px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);color:var(--muted);font-size:12px;line-height:1;padding:0}
   .kpi-nav button:hover{color:var(--gold);border-color:var(--gold-dim)}
   .income-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
-  .income-card summary{list-style:none;cursor:pointer;padding:16px 42px 16px 18px;position:relative}
+  .income-card summary{list-style:none;cursor:pointer;padding:16px 42px 16px 18px;position:relative;min-height:112px}
   .income-card summary::-webkit-details-marker{display:none}
   .income-card summary::after{content:"▾";position:absolute;right:18px;top:18px;color:var(--gold);font-size:13px;transition:.15s}
   .income-card[open] summary::after{transform:rotate(180deg)}
@@ -94,7 +94,7 @@
   .income-card .income-top{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:10px}
   .income-card .chev{color:var(--gold);font-size:13px;transition:.15s}
   .income-card[open] .chev{transform:rotate(180deg)}
-  .income-detail{border-top:1px solid var(--line);padding:13px 18px 16px;background:rgba(28,35,45,.5)}
+  .income-detail{border-top:1px solid var(--line);padding:13px 18px 16px;background:rgba(28,35,45,.5);min-height:124px;content-visibility:auto;contain-intrinsic-size:124px}
   .month-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
   .month-nav .label{font-size:12px;color:var(--muted);font-weight:700}
   .month-nav .buttons{display:flex;gap:6px}
@@ -152,7 +152,7 @@
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
   .bars::before{content:"";position:absolute;bottom:0;right:0;width:calc((100% / 8));height:100%;background:rgba(201,162,75,.06);border-radius:0 4px 0 0;z-index:0;pointer-events:none}
-  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:.1s;z-index:1}
+  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease;z-index:1}
   .bar:hover{opacity:0.8}
   .bar.selected{outline:1px solid var(--gold);outline-offset:2px}
   .bar span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--faint)}
@@ -187,11 +187,38 @@
   .yoy-fill{height:100%;background:var(--gold-dim);border-radius:20px}
   .yoy-row.now .yoy-fill{background:var(--gold)}
   .yoy-note{font-size:12px;color:var(--faint);margin-top:12px}
+  .rail-panel{margin-bottom:16px}
+  .rail-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+  .rail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:86px}
+  .rail-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .rail .name{font-size:11px;color:var(--muted);font-weight:700}
+  .rail .score{font-family:'IBM Plex Mono';font-size:12px;color:var(--text);white-space:nowrap}
+  .rail-track{height:7px;background:var(--panel-2);border-radius:20px;overflow:hidden}
+  .rail-fill{height:100%;border-radius:20px;background:var(--gold);width:0}
+  .rail-fill.ok{background:var(--ok)} .rail-fill.watch{background:var(--watch)} .rail-fill.behind{background:var(--behind)}
+  .rail-note{font-size:11px;color:var(--faint);margin-top:7px;line-height:1.3}
+  .agenda-panel{margin:16px 0}
+  .agenda-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .agenda-head h2{font-size:15px}
+  .agenda-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .agenda-item{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:74px;display:flex;flex-direction:column;gap:5px}
+  .agenda-item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:var(--faint)}
+  .agenda-item .kind{font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+  .agenda-item strong{font-size:12px;line-height:1.25;color:var(--text);font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .agenda-item .amount{font-family:'IBM Plex Mono';font-size:11px;color:var(--gold)}
+  .agenda-item.work{border-color:rgba(201,162,75,.26)} .agenda-item.lesson{border-color:rgba(63,185,80,.22)} .agenda-item.health{border-color:rgba(210,153,34,.24)} .agenda-item.life{border-color:rgba(139,151,166,.28)}
+  .agenda-empty{color:var(--faint);font-size:12px}
+  @media(max-width:980px){.rail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.agenda-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.rail-grid,.agenda-list{grid-template-columns:1fr}.kpi{min-height:0}.income-card summary{min-height:0}}
   input[type=email],input[type=password]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:13px;width:240px}
   input:focus{outline:2px solid var(--gold);outline-offset:1px}
   .center{display:flex;align-items:center;justify-content:center;min-height:220px;text-align:center}
   .foot-note{color:var(--faint);font-size:11.5px;margin-top:26px;text-align:center;line-height:1.6}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  body.nav-refreshing .income-detail,
+  body.nav-refreshing .kpi,
+  body.nav-refreshing .bar,
+  body.nav-refreshing .income-card summary::after{transition:none!important}
 
   /* Privacy / visibility filter: blur ONLY the numbers (each wrapped in .pv).
      Every label, word, chart shape and the gauge ring stays visible, so a screenshot
@@ -265,6 +292,16 @@
         <span class="small faint">the few things that matter next</span>
       </div>
       <div class="attention-list" id="attentionList"></div>
+    </section>
+
+    <section class="rail-panel" id="goalRails"></section>
+
+    <section class="panel agenda-panel" id="agendaPanel">
+      <div class="agenda-head">
+        <h2>Next 7 days</h2>
+        <span class="small faint">gigs, lessons, training and life in one scan</span>
+      </div>
+      <div class="agenda-list" id="agendaList"></div>
     </section>
 
     <div class="grid g4" id="kpiRow"></div>
@@ -415,11 +452,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.17.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets, a unified next-7-days agenda across gigs, lessons, workouts and relationship events, and smoother month-arrow rendering with more stable card/detail heights."},
     {v:"1.16.4",d:"2026-07-19",note:"Social and Aimee event chips now sit beside the KPI count, use tighter chip sizing, and stop repeating target text inside the card."},
     {v:"1.16.3",d:"2026-07-19",note:"Social and Aimee cards now use the empty summary space for compact always-visible event tiles, with shortened labels and full date/title on hover."},
     {v:"1.16.2",d:"2026-07-19",note:"Live refresh labels now use the successful page fetch time instead of stale metrics.updated_at, so mobile refreshes do not appear stuck on old metrics rows. Social and Aimee cards now open by default with compact event tiles visible immediately."},
-    {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."},
-    {v:"1.16.0",d:"2026-07-16",note:"Small KPI cards now have compact month arrows. Shabbat can be inspected by month. Revenue cards now separate total YTD from projected trajectory, including maths YTD and projected tutoring value rather than showing magic-only turnover as total turnover."}
+    {v:"1.16.1",d:"2026-07-17",note:"Sync label now omits 'today' for same-day refreshes, says 'yesterday' when the latest metrics row is from yesterday, and Shabbat/Yom Tov violation flags say Broken instead of Clash."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -589,8 +626,19 @@
   var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
   var selectedIncomeMonthOffset=0, selectedMagicMonthOffset=0, selectedMathsMonthOffset=0, selectedShabbatMonthOffset=0;
+  var pendingRender=false;
 
   // ---------- scoring ----------
+  function smoothRender(){
+    document.body.classList.add("nav-refreshing");
+    if(pendingRender) return;
+    pendingRender=true;
+    requestAnimationFrame(function(){
+      pendingRender=false;
+      render();
+      requestAnimationFrame(function(){ document.body.classList.remove("nav-refreshing"); });
+    });
+  }
   function monthBounds(offset){
     var n=new Date(),start=new Date(n.getFullYear(),n.getMonth()+(offset||0),1),end=new Date(n.getFullYear(),n.getMonth()+(offset||0)+1,1);
     return {start:start,end:end,startISO:iso(start),endISO:iso(end),label:MONTHS[start.getMonth()]+" "+start.getFullYear()};
@@ -605,8 +653,8 @@
         if(kind==="income") selectedIncomeMonthOffset+=dir;
         if(kind==="magic") selectedMagicMonthOffset+=dir;
         if(kind==="maths") selectedMathsMonthOffset+=dir;
-        if(kind==="shabbat"){ selectedShabbatMonthOffset+=dir; loadShabbatAudit().then(render); return; }
-        render();
+        if(kind==="shabbat"){ selectedShabbatMonthOffset+=dir; document.body.classList.add("nav-refreshing"); loadShabbatAudit().then(smoothRender); return; }
+        smoothRender();
       });
     });
   }
@@ -858,6 +906,51 @@
       return '<div class="shabbat-row"><span class="mono">'+shortDate(iso(g.start))+' '+time+'</span><strong>'+esc(g.event)+note+'</strong><span class="flag '+flag[0]+'">'+flag[1]+'</span></div>';
     }).join("")+'</div>':'<div class="small faint">'+(a.summary||"No Shabbat/Yom Tov clashes found.")+'</div>';
   }
+  function pct(n,d){ return d?clamp(Math.round((n/d)*100),0,125):0; }
+  function railHTML(name,value,percent,cls,note){
+    return '<div class="rail"><div class="rail-top"><span class="name">'+esc(name)+'</span><span class="score">'+value+'</span></div><div class="rail-track"><div class="rail-fill '+cls+'" style="width:'+clamp(percent,0,100)+'%"></div></div><div class="rail-note">'+note+'</div></div>';
+  }
+  function renderGoalRails(sc,c,good,great,lw){
+    var m=S.money, income=sc.income||0, full=m.full_lifestyle_gross||7778, surv=m.survival_gross||5764;
+    var incomePct=pct(income,full), incomeCls=income>=full?"ok":income>=surv?"watch":"behind";
+    var workoutPct=pct(c,good), workoutCls=workoutPace(c,good,great).cls;
+    var socialCount=socialEventsThisMonth().length, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5, socialP=socialPace(socialCount,socialMin,socialMax,new Date());
+    var aimeeCount=aimeeEventsThisWeek().length, aimeeTarget=m.aimee_target_week||1, aimeeP=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
+    var trend=weightTrend(), weightCls="watch", weightPct=55, weightNote="log a recent weigh-in";
+    if(lw!=null&&trend!=null){ weightCls=trend<=0?"ok":trend<=1?"watch":"behind"; weightPct=trend<=0?100:trend<=1?70:35; weightNote=(trend<=0?"down/flat":("+"+trend+"kg"))+" vs last week"; }
+    else if(lw!=null){ var diff=Math.round((lw-(m.weight_baseline||90))*10)/10; weightCls=diff<=1?"ok":diff<=3?"watch":"behind"; weightPct=diff<=1?100:diff<=3?70:35; weightNote=(diff>=0?"+":"")+diff+"kg vs baseline"; }
+    var rails=[
+      railHTML("Income",pv(gbp(income)),incomePct,incomeCls,income>=full?"full lifestyle covered":income>=surv?gbp(full-income)+" to full lifestyle":gbp(surv-income)+" to survival"),
+      railHTML("Training",pv(c+" / "+good),workoutPct,workoutCls,c>=good?"target hit":(good-c)+" more for a good week"),
+      railHTML("Weight",lw!=null?pv(lw+"kg"):"--",weightPct,weightCls,esc(weightNote)),
+      railHTML("Social",pv(socialCount+" / "+socialMin),pct(socialCount,socialMin),socialP.cls,socialCount>=socialMax?"top of range":socialCount>=socialMin?"healthy month":(socialMin-socialCount)+" more this month"),
+      railHTML("Aimee",pv(aimeeCount+" / "+aimeeTarget),pct(aimeeCount,aimeeTarget),aimeeP.cls,aimeeCount>=aimeeTarget?"on track":"get one in")
+    ];
+    document.getElementById("goalRails").innerHTML='<div class="rail-grid">'+rails.join("")+'</div>';
+  }
+  function relDayLabel(dateISO){
+    var d=dateObj(dateISO),n=new Date(),today=iso(n),tomorrow=iso(new Date(n.getFullYear(),n.getMonth(),n.getDate()+1));
+    if(dateISO===today) return "today";
+    if(dateISO===tomorrow) return "tomorrow";
+    return shortDate(dateISO);
+  }
+  function agendaRows(m){
+    var now=new Date(),start=todayISO(),end=iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()+7)),rows=[];
+    function inRange(date){ return date&&date>=start&&date<end; }
+    function add(date,kind,cls,title,amount){ if(inRange(date)) rows.push({date:date,kind:kind,cls:cls,title:title||kind,amount:amount}); }
+    var magicRows=(S.gigs&&S.gigs.length)?S.gigs.map(function(g){return {date:g.event,title:g.name,amount:g.fee};}):(m.magic_upcoming||[]);
+    magicRows.forEach(function(g){ add(g.date||g.event,"gig","work",g.title||g.event||g.name,g.amount||g.fee); });
+    (S.lessons||[]).forEach(function(l){ if(l.status==="upcoming") add(l.date,"lesson","lesson",l.student||"Lesson",l.amount); });
+    (S.workouts||[]).forEach(function(w){ add(w.date,"workout","health",w.type||"Workout",null); });
+    (S.relationshipEvents||[]).forEach(function(e){ add(e.date,e.source==="aimee"?"Aimee":"social","life",e.title||"Event",null); });
+    return rows.sort(function(a,b){ return a.date===b.date? a.kind.localeCompare(b.kind) : a.date>b.date?1:-1; }).slice(0,8);
+  }
+  function renderAgenda(m){
+    var rows=agendaRows(m);
+    document.getElementById("agendaList").innerHTML=rows.length?rows.map(function(r){
+      return '<div class="agenda-item '+r.cls+'"><div class="meta"><span class="kind">'+esc(r.kind)+'</span><span>'+relDayLabel(r.date)+'</span></div><strong title="'+esc(r.title)+'">'+esc(r.title)+'</strong>'+(r.amount?'<span class="amount">'+pv(gbp(r.amount))+'</span>':'')+'</div>';
+    }).join(""):'<div class="agenda-empty">Nothing dated in the next 7 days.</div>';
+  }
   function attentionItems(sc,c,good,great,lw,lessUp){
     var m=S.money, items=[], income=sc.income||0, survival=m.survival_gross||5764, full=m.full_lifestyle_gross||7778;
     var bw=m.booked_this_week||0, bm=m.booked_this_month||0;
@@ -907,7 +1000,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.16.4";
+    document.getElementById("versionLabel").textContent="v1.17.0";
     paintSourceBadges();
     var sc=scores(), vd=verdict(sc), m=S.money;
     document.getElementById("scoreN").innerHTML=pv(sc.overall.toFixed(1));
@@ -935,6 +1028,8 @@
     document.getElementById("attentionList").innerHTML=attentionItems(sc,c,good,great,lw,lessUp).map(function(item){
       return '<div class="attention-item '+item.kind+'"><div class="kind">'+item.label+'</div><div class="msg">'+item.msg+'</div></div>';
     }).join("");
+    renderGoalRails(sc,c,good,great,lw);
+    renderAgenda(m);
 
     // "This month" = every gig dated in the current calendar month, past and future — a gig already
     // booked for later this month is confirmed money, so the month total doesn't get judged as
@@ -1195,7 +1290,7 @@
     document.getElementById("verdictWhy").textContent="Your database is live and empty. Add rows to the metrics, workouts, weights and lessons tables and this fills in.";
     document.getElementById("subscores").innerHTML="";
     document.getElementById("kpiRow").innerHTML="";
-    ["attentionList","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
+    ["attentionList","goalRails","agendaList","weekDots","weekBars","weightChart","revYoy","lessonsWrap"].forEach(function(id){document.getElementById(id).innerHTML="";});
     document.getElementById("weekSummary").textContent="";
     document.getElementById("weightNow").textContent="--";
     document.getElementById("weightDelta").innerHTML="";
@@ -1203,7 +1298,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.16.4";
+    document.getElementById("versionLabel").textContent="v1.17.0";
   }
 
   // ---------- modes ----------
