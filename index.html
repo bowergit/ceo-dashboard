@@ -598,11 +598,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
     {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
     {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
     {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
     {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
-    {v:"1.25.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets and a unified next-7-days agenda across gigs, lessons, workouts and relationship events. Month toggles keep the glide animation while repeated cards/detail areas now have more stable heights, reducing layout jump."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1043,7 +1043,7 @@
   // the plot area, and updates continuously while a finger (or mouse) drags across it — attached
   // once to the stable <svg id="weightChart"> element (see below), reading the latest
   // WEIGHT_CHART_STATE that render() refreshes each time the chart is rebuilt.
-  function updateWeightCrosshair(clientX,clientY){
+  function updateWeightCrosshair(clientX,clientY,pointerType){
     if(!WEIGHT_CHART_STATE) return;
     var svg=document.getElementById("weightChart"); if(!svg) return;
     var rect=svg.getBoundingClientRect(); if(!rect.width) return;
@@ -1060,8 +1060,19 @@
     if(svgX<st.left||svgX>st.left+st.w||svgY<st.top||svgY>st.top+st.h){ hideWeightCrosshair(); return; }
     var pts=WEIGHT_CHART_STATE.pts.filter(function(p){return p[1]!=null;});
     if(!pts.length) return;
-    var nearest=pts[0], bestDist=Math.abs(pts[0][0]-svgX);
-    pts.forEach(function(p){ var d=Math.abs(p[0]-svgX); if(d<bestDist){ bestDist=d; nearest=p; } });
+    // Mouse: true 2D distance to the dot itself (a fixed small radius — dot render radius is 3.4),
+    // so hovering over empty space, even inside the plotted rectangle, correctly shows nothing.
+    // Points ~10 units apart with a half-the-gap threshold (an earlier attempt at this) still
+    // covers the ENTIRE width with no real dead zone at all for evenly-spaced data — that's why
+    // it "still looked weird": it wasn't actually any tighter than matching nearest-with-no-limit.
+    // A fixed radius, and checking Y as well as X, is what makes it mean "hovering over the point".
+    // Touch keeps nearest-by-X-only with no distance limit: gliding a finger near the line, not
+    // exactly on a point, is the whole reason that interaction exists.
+    var isMouse=pointerType==="mouse";
+    function dist(p){ if(!isMouse) return Math.abs(p[0]-svgX); var dx=p[0]-svgX,dy=p[1]-svgY; return Math.sqrt(dx*dx+dy*dy); }
+    var nearest=pts[0], bestDist=dist(pts[0]);
+    pts.forEach(function(p){ var d=dist(p); if(d<bestDist){ bestDist=d; nearest=p; } });
+    if(isMouse && bestDist>4){ hideWeightCrosshair(); return; } // dot render radius is 3.4 — this is barely more forgiving than the dot itself, on purpose
     var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
     var tipRect=document.getElementById("weightCrosshairRect"), tipText=document.getElementById("weightCrosshairText");
     if(!line||!tipG||!tipRect||!tipText) return;
@@ -1322,7 +1333,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.29.0";
+    document.getElementById("versionLabel").textContent="v1.30.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1647,7 +1658,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.29.0";
+    document.getElementById("versionLabel").textContent="v1.30.0";
   }
 
   // ---------- modes ----------
@@ -1742,9 +1753,9 @@
   if(weightChartEl){
     weightChartEl.addEventListener("pointerdown",function(e){
       if(e.pointerType!=="mouse"&&weightChartEl.setPointerCapture) weightChartEl.setPointerCapture(e.pointerId);
-      updateWeightCrosshair(e.clientX,e.clientY);
+      updateWeightCrosshair(e.clientX,e.clientY,e.pointerType);
     });
-    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX,e.clientY); });
+    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX,e.clientY,e.pointerType); });
     weightChartEl.addEventListener("pointerleave",function(e){ if(e.pointerType==="mouse") hideWeightCrosshair(); });
   }
 
