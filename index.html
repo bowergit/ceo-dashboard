@@ -598,11 +598,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
     {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
     {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
     {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
     {v:"1.25.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets and a unified next-7-days agenda across gigs, lessons, workouts and relationship events. Month toggles keep the glide animation while repeated cards/detail areas now have more stable heights, reducing layout jump."},
-    {v:"1.24.0",d:"2026-07-29",note:"Why overlay: the big WHY title starting blurry was transform:scale rendering it small then stretching the bitmap up 6x — switched to animating font-size instead, so it's crisp the whole way through. The closing shimmer no longer makes the text vanish for most of its run: the gradient used transparent at its edges, so outside the travelling highlight band the text had no fill at all — now the edges are currentColor, so the text stays fully readable throughout and the highlight is just a brighter patch passing over it."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1043,12 +1043,21 @@
   // the plot area, and updates continuously while a finger (or mouse) drags across it — attached
   // once to the stable <svg id="weightChart"> element (see below), reading the latest
   // WEIGHT_CHART_STATE that render() refreshes each time the chart is rebuilt.
-  function updateWeightCrosshair(clientX){
+  function updateWeightCrosshair(clientX,clientY){
     if(!WEIGHT_CHART_STATE) return;
     var svg=document.getElementById("weightChart"); if(!svg) return;
     var rect=svg.getBoundingClientRect(); if(!rect.width) return;
-    var vb=svg.viewBox&&svg.viewBox.baseVal, vbWidth=vb&&vb.width?vb.width:320;
+    var vb=svg.viewBox&&svg.viewBox.baseVal, vbWidth=vb&&vb.width?vb.width:320, vbHeight=vb&&vb.height?vb.height:118;
     var svgX=(clientX-rect.left)*(vbWidth/rect.width);
+    var svgY=(clientY-rect.top)*(vbHeight/rect.height);
+    var st=WEIGHT_CHART_STATE;
+    // hit-area spans the whole SVG (so a touch/click near, not exactly on, a 3px dot still
+    // registers), but that box also covers the axis-label margins around the actual plot — the
+    // "90kg"/"+1" labels on the left and the date labels along the bottom. Hovering there isn't
+    // hovering the chart, and matching by X alone with no bounds meant it always resolved to
+    // SOME point, rendering a crosshair that visibly didn't line up with the cursor. Bail outside
+    // the true plotted rectangle instead of clamping to the nearest edge point.
+    if(svgX<st.left||svgX>st.left+st.w||svgY<st.top||svgY>st.top+st.h){ hideWeightCrosshair(); return; }
     var pts=WEIGHT_CHART_STATE.pts.filter(function(p){return p[1]!=null;});
     if(!pts.length) return;
     var nearest=pts[0], bestDist=Math.abs(pts[0][0]-svgX);
@@ -1056,7 +1065,6 @@
     var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
     var tipRect=document.getElementById("weightCrosshairRect"), tipText=document.getElementById("weightCrosshairText");
     if(!line||!tipG||!tipRect||!tipText) return;
-    var st=WEIGHT_CHART_STATE;
     line.setAttribute("x1",nearest[0]); line.setAttribute("x2",nearest[0]);
     line.classList.add("show");
     var labelText=fmtD(nearest[2].date)+": "+nearest[2].kg+"kg";
@@ -1314,7 +1322,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.28.0";
+    document.getElementById("versionLabel").textContent="v1.29.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1639,7 +1647,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.28.0";
+    document.getElementById("versionLabel").textContent="v1.29.0";
   }
 
   // ---------- modes ----------
@@ -1734,9 +1742,9 @@
   if(weightChartEl){
     weightChartEl.addEventListener("pointerdown",function(e){
       if(e.pointerType!=="mouse"&&weightChartEl.setPointerCapture) weightChartEl.setPointerCapture(e.pointerId);
-      updateWeightCrosshair(e.clientX);
+      updateWeightCrosshair(e.clientX,e.clientY);
     });
-    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX); });
+    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX,e.clientY); });
     weightChartEl.addEventListener("pointerleave",function(e){ if(e.pointerType==="mouse") hideWeightCrosshair(); });
   }
 
