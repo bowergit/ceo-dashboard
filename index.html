@@ -598,11 +598,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
     {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
     {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
     {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
     {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
-    {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1288,12 +1288,9 @@
       var ap=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
       if(ap.label==="on track") items.push({kind:"ok",label:"Aimee",target:"aimeeCard",msg:aimeeCount+" thing"+(aimeeCount===1?"":"s")+" with Aimee logged this week. On track."});
       else items.push({kind:ap.cls,label:"Aimee",target:"aimeeCard",msg:ap.cls==="behind"?"Nothing with Aimee logged this week — get something in.":"Nothing with Aimee yet this week, but there's still time."});
-
-      var socialCount=socialEventsThisMonth().length, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5;
-      var sp=socialPace(socialCount,socialMin,socialMax,new Date());
-      if(sp.cls==="ok") items.push({kind:"ok",label:"Social",target:"socialCard",msg:socialCount+" social event"+(socialCount===1?"":"s")+" this month. "+(sp.label==="great"?"Great social month.":"Healthy social month.")});
-      else items.push({kind:sp.cls,label:"Social",target:"socialCard",msg:"Only "+socialCount+" social event"+(socialCount===1?"":"s")+" logged this month — aim for "+socialMin+"-"+socialMax+"."});
     }
+    var monthLessons=lessonMonthStats(0).rows.length;
+    items.push({kind:"ok",label:"Lessons",target:"kpi-lessons",msg:monthLessons+" lesson"+(monthLessons===1?"":"s")+" booked this month."});
     var planned=scheduledWorkoutsInWeek(weekKey(new Date())).length, bookedTotal=c+planned;
     if(c>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done this week — target of "+good+" already hit. Keep it repeatable."});
     else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done, "+planned+" still in the diary — on track to hit "+good+" if you show up."});
@@ -1333,7 +1330,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.30.0";
+    document.getElementById("versionLabel").textContent="v1.31.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1398,6 +1395,10 @@
     var kpis=[
       {id:"kpi-income",lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
       {id:"kpi-gigs",lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
+      // By deposit/booked date, not event date — always the real current month, so unlike the
+      // Gigs tile above it deliberately has no month-nav (the underlying count doesn't move with
+      // selectedMagicMonthOffset, and arrows that silently did nothing would be worse than none).
+      {id:"kpi-booked-month",lab:"Booked this month",title:"Gigs where the deposit/booked date falls in the current calendar month — not the event date. Always this month; doesn't follow the Gigs tile's month arrows.",big:gigsUsable?String(m.booked_this_month||0):"--",foot:gigsUsable?(pv(gbp(m.booked_month_value||0))+" value"+srcTag("magic",GIGS_STATE)):magicNote},
       {id:"kpi-lessons",lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-ytd",lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-outlook",lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
@@ -1658,7 +1659,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.30.0";
+    document.getElementById("versionLabel").textContent="v1.31.0";
   }
 
   // ---------- modes ----------
