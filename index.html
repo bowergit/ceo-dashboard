@@ -32,7 +32,7 @@
     --ink:#0E1117; --panel:#161B22; --panel-2:#1C232D; --line:#26303B;
     --text:#E7ECF2; --muted:#8B97A6; --faint:#5C6774;
     --gold:#C9A24B; --gold-dim:#8f7233;
-    --ok:#3FB950; --watch:#D29922; --behind:#F85149; --r:12px;
+    --ok:#3FB950; --ok-light:#7ED77A; --watch:#D29922; --behind:#F85149; --r:12px;
   }
   *{box-sizing:border-box} html,body{margin:0}
   html{overflow-x:hidden;touch-action:pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -77,7 +77,10 @@
   .verdict .lead{font-family:'Space Grotesk';font-size:23px;font-weight:600;line-height:1.2;letter-spacing:-.01em}
   .verdict .why{color:var(--muted);font-size:14px;margin-top:8px;max-width:54ch}
   .subscores{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-  .sub{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:112px}
+  .sub{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:112px;transition:border-color .2s cubic-bezier(.2,.8,.2,1),box-shadow .25s cubic-bezier(.2,.8,.2,1)}
+  .sub[data-target]{cursor:pointer}
+  .sub[data-target]:hover{border-color:rgba(201,162,75,.35)}
+  .sub:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .sub .lab{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
   .sub .val{font-family:'IBM Plex Mono';font-size:19px;font-weight:600;margin-top:2px}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -595,11 +598,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
     {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
     {v:"1.26.0",d:"2026-07-31",note:"Removed the next-7-days agenda, added a compact daily systems prompt, widened the weight-chart hover/drag target to the whole plot, aligned the current-week workout highlight to the actual bar width, and moved noisy KPI explanations into hover titles."},
     {v:"1.25.0",d:"2026-07-31",note:"Experimental pass: added goal rails for monthly/weekly targets and a unified next-7-days agenda across gigs, lessons, workouts and relationship events. Month toggles keep the glide animation while repeated cards/detail areas now have more stable heights, reducing layout jump."},
     {v:"1.24.0",d:"2026-07-29",note:"Why overlay: the big WHY title starting blurry was transform:scale rendering it small then stretching the bitmap up 6x — switched to animating font-size instead, so it's crisp the whole way through. The closing shimmer no longer makes the text vanish for most of its run: the gradient used transparent at its edges, so outside the travelling highlight band the text had no fill at all — now the edges are currentColor, so the text stays fully readable throughout and the highlight is just a brighter patch passing over it."},
-    {v:"1.23.0",d:"2026-07-29",note:"Why overlay: WHY now holds big and centred for a full second before it travels up, and the whole sequence is retimed around that. The closing shimmer fires on every line at once. Week bars now draw a dashed ghost on top of the current week showing where it lands if everything still in the calendar happens, so a planned 5 is visible as a 5. Discreet mode blur is now sized in em rather than a flat 6px, so it scales with the number it is hiding — small figures were still readable before."}
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -655,6 +658,20 @@
       if(e.key!=="Enter"&&e.key!==" ") return;
       var card=e.target.closest(".attention-item[data-target]"); if(!card) return;
       e.preventDefault(); activate(card);
+    });
+  }
+  // Money/Momentum/Discipline subscores under the readiness gauge, same jump-to-source pattern
+  // as the attention cards below — bound once on the row (delegated), since the row's own
+  // children get replaced wholesale on every render().
+  function wireSubscoreJumps(){
+    var row=document.getElementById("subscores"); if(!row||row._jumpBound) return;
+    row._jumpBound=true;
+    function activate(tile){ var target=tile&&tile.getAttribute("data-target"); if(target) flashTo(target); }
+    row.addEventListener("click",function(e){ activate(e.target.closest(".sub[data-target]")); });
+    row.addEventListener("keydown",function(e){
+      if(e.key!=="Enter"&&e.key!==" ") return;
+      var tile=e.target.closest(".sub[data-target]"); if(!tile) return;
+      e.preventDefault(); activate(tile);
     });
   }
 
@@ -1005,6 +1022,18 @@
     var e=latestWeightEntry(); if(!e) return null;
     return weightTrendAt(e.date,e.kg);
   }
+  // Absolute-position goalpost — how far the latest reading sits from baseline, independent of
+  // week-over-week trend. Used only as a fallback where there's no week-old reading to trend off.
+  // Previously three different call sites each invented their own diff<=N cutoff (1/3, 2/4, and
+  // >2/>4) that had drifted out of sync with each other. One shared scale now: at the default
+  // 90kg baseline, <=89kg is fully green, 89-90kg is a lighter green (good but not at the tighter
+  // mark), 90-92kg is watch, beyond that is behind.
+  function weightGoalpost(lw,baseline){
+    var diff=Math.round((lw-baseline)*10)/10;
+    var cls = diff<=-1?"great":diff<=0?"good":diff<=2?"watch":"behind";
+    var col = cls==="great"?"var(--ok)":cls==="good"?"var(--ok-light)":cls==="watch"?"var(--watch)":"var(--behind)";
+    return {diff:diff,cls:cls,col:col};
+  }
   function weightTrendAt(dateISO,kg){ // same week-over-week comparison, but for an arbitrary point (used per chart dot)
     var prior=weightNDaysAgo(dateISO,7); if(prior==null) return null;
     return Math.round((kg-prior)*10)/10;
@@ -1158,7 +1187,7 @@
       var wS=c>=great?10:c>=good?8:c===2?6:c===1?3:0;
       var lw=latestWeight(), trend=weightTrend(), wtS=6;
       if(trend!=null) wtS = trend<=0?10 : trend<=1?7 : 4; // trending down/flat vs a week ago is what matters, not a hard absolute line
-      else if(lw!=null){ var base=m.weight_baseline||90, over=lw-base; wtS=over<=2?8:over<=4?6:4; } // softened fallback when there's no week-ago reading yet
+      else if(lw!=null){ var gp=weightGoalpost(lw,m.weight_baseline||90); wtS=gp.cls==="great"?9:gp.cls==="good"?7:gp.cls==="watch"?5:3; } // softened fallback when there's no week-ago reading yet
       discipline=Math.round(0.6*wS+0.4*wtS);
     }
     var overall= discipline==null? Math.round((money*0.55+momentum*0.45)*10)/10 : Math.round((money*0.4+momentum*0.35+discipline*0.25)*10)/10;
@@ -1214,7 +1243,12 @@
     var aimeeCount=aimeeEventsThisWeek().length, aimeeTarget=m.aimee_target_week||1, aimeeP=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
     var trend=weightTrend(), weightCls="watch", weightPct=55, weightNote="log a recent weigh-in";
     if(lw!=null&&trend!=null){ weightCls=trend<=0?"ok":trend<=1?"watch":"behind"; weightPct=trend<=0?100:trend<=1?70:35; weightNote=(trend<=0?"down/flat":("+"+trend+"kg"))+" vs last week"; }
-    else if(lw!=null){ var diff=Math.round((lw-(m.weight_baseline||90))*10)/10; weightCls=diff<=1?"ok":diff<=3?"watch":"behind"; weightPct=diff<=1?100:diff<=3?70:35; weightNote=(diff>=0?"+":"")+diff+"kg vs baseline"; }
+    else if(lw!=null){
+      var gpr=weightGoalpost(lw,m.weight_baseline||90); // rail only has 3 colour tiers, so "great"/"good" both read as ok here — the lighter-green distinction lives on weightDelta below, which does have a 4th tier
+      weightCls=(gpr.cls==="great"||gpr.cls==="good")?"ok":gpr.cls;
+      weightPct=gpr.cls==="great"?100:gpr.cls==="good"?85:gpr.cls==="watch"?55:25;
+      weightNote=(gpr.diff>=0?"+":"")+gpr.diff+"kg vs baseline";
+    }
     var rails=[
       railHTML("Income",pv(gbp(income)),incomePct,incomeCls,income>=full?"full lifestyle covered":income>=surv?gbp(full-income)+" to full lifestyle":gbp(surv-income)+" to survival"),
       railHTML("Training",pv(c+" / "+good),workoutPct,workoutCls,c>=good?"target hit":(good-c)+" more for a good week"),
@@ -1254,10 +1288,10 @@
         else if(trend<=1) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Keep an eye on it."});
         else items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Get back on track this week."});
       } else {
-        var base=m.weight_baseline||90, diff=Math.round((lw-base)*10)/10;
-        if(diff>4) items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is +"+diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
-        else if(diff>2) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is +"+diff+"kg vs baseline."});
-        else items.push({kind:"ok",label:"Good",target:"weightPanel",msg:"Weight is close to baseline."});
+        var gpa=weightGoalpost(lw,m.weight_baseline||90);
+        if(gpa.cls==="behind") items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is +"+gpa.diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
+        else if(gpa.cls==="watch") items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is +"+gpa.diff+"kg vs baseline."});
+        else items.push({kind:"ok",label:"Good",target:"weightPanel",msg:gpa.cls==="great"?"Weight is at or under the "+(m.weight_baseline||90)+"kg target.":"Weight is close to target."});
       }
     }
     if(income<survival) items.push({kind:"behind",label:"Action",target:"kpi-income",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
@@ -1280,7 +1314,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.27.0";
+    document.getElementById("versionLabel").textContent="v1.28.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1295,11 +1329,15 @@
 
     document.getElementById("verdictLead").textContent=vd.lead;
     document.getElementById("verdictWhy").innerHTML=vd.why;
-    var subs=[["Money",sc.money],["Momentum",sc.momentum],["Discipline",sc.discipline==null?"–":sc.discipline]];
+    // Money is scored off income vs the lifestyle targets, Momentum off YoY turnover growth, and
+    // Discipline off training pace + weight trend — so each links to wherever those numbers
+    // actually come from, same convention the attention cards above already use for their targets.
+    var subs=[["Money",sc.money,"kpi-income"],["Momentum",sc.momentum,"trajectoryPanel"],["Discipline",sc.discipline==null?"–":sc.discipline,"workoutPanel"]];
     document.getElementById("subscores").innerHTML=subs.map(function(s){
-      var v=s[1],col=(v==="–")?"var(--faint)":statusColor(v);
-      return '<div class="sub"><div class="lab"><span class="dot" style="background:'+col+'"></span>'+s[0]+'</div><div class="val">'+(v==="–"?"–":pv(v))+'<span class="faint" style="font-size:12px">/10</span></div></div>';
+      var v=s[1],col=(v==="–")?"var(--faint)":statusColor(v),target=s[2];
+      return '<div class="sub" data-target="'+target+'" role="button" tabindex="0" title="Jump to '+esc(s[0])+'"><div class="lab"><span class="dot" style="background:'+col+'"></span>'+s[0]+'</div><div class="val">'+(v==="–"?"–":pv(v))+'<span class="faint" style="font-size:12px">/10</span></div></div>';
     }).join("");
+    wireSubscoreJumps();
 
     var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
     var plannedWk=scheduledWorkoutsInWeek(weekKey(new Date())).length;
@@ -1446,8 +1484,8 @@
       var tcol=wTrend<=0?"var(--ok)":wTrend<=1?"var(--watch)":"var(--behind)";
       dEl.innerHTML='<span style="color:'+tcol+'">'+pv((wTrend>0?"+":"")+wTrend+" kg")+' vs a week ago</span>';
     } else if(lw!=null){
-      var base=m.weight_baseline||90,diff=Math.round((lw-base)*10)/10,col=diff<=2?"var(--ok)":diff<=4?"var(--watch)":"var(--behind)";
-      dEl.innerHTML='<span style="color:'+col+'">'+pv((diff>0?"+":"")+diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
+      var gpd=weightGoalpost(lw,m.weight_baseline||90);
+      dEl.innerHTML='<span style="color:'+gpd.col+'">'+pv((gpd.diff>0?"+":"")+gpd.diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
     } else dEl.innerHTML='<span class="faint">no weight logged</span>';
     var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-29); // last 29, plus today
     // Add today if not already there
@@ -1601,11 +1639,19 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.27.0";
+    document.getElementById("versionLabel").textContent="v1.28.0";
   }
 
   // ---------- modes ----------
   var mode="sample", sb=null;
+  // Bumped at the start of every loadSample()/loadLive() call. Both functions are async with
+  // several awaits, and neither used to check whether it was still the mode the user actually
+  // wanted by the time those awaits resolved — so switching Sample -> Live -> Sample fast enough
+  // could let an earlier, slower call's tail end finish LAST and clobber the screen with stale
+  // data after a newer, correct load had already rendered. Each function captures its own
+  // generation number on entry and bails out silently past any await if a newer call has since
+  // started, so only the most recent click ever gets to touch S.*/HEALTH_STATE/the DOM.
+  var loadGen=0;
   // "sample" | "loading" | "live" | "error" — GIGS_STATE covers the magic feed, HEALTH_STATE covers
   // Supabase (weight/workouts/tutoring). Kept as explicit states, not booleans, so an in-flight or
   // failed fetch is never mislabeled "sample" or silently rendered as a misleading zero.
@@ -1739,19 +1785,24 @@
   }
 
   async function loadSample(){
+    var myGen=++loadGen;
     var d=sampleData(); S.money=d.money; S.workouts=d.workouts; S.weights=d.weights; S.lessons=d.lessons; S.timedGigs=d.timedGigs; S.relationshipEvents=d.relationshipEvents; S.hasData=true;
     HEALTH_STATE="sample"; GIGS_STATE="sample"; S.gigs=[]; // Sample mode is 100% fictional — no real gig feed here, on purpose
     document.getElementById("logoutBtn").style.display="none";
     await loadShabbatAudit();
+    if(myGen!==loadGen) return; // a newer mode switch fired while the audit was in flight — let it win
     setBanner("sample"); showView("app"); footNote();
     setSynced("sample data"); render();
   }
 
   async function loadLive(){
+    var myGen=++loadGen;
     setBanner("live");
     var client=await getClient();
+    if(myGen!==loadGen) return;
     if(!client){ showView("config"); setSynced("not connected"); return; }
     var sess=(await client.auth.getSession()).data.session;
+    if(myGen!==loadGen) return;
     if(!sess){ showView("login"); setSynced("signed out"); document.getElementById("logoutBtn").style.display="none"; return; }
     document.getElementById("logoutBtn").style.display="inline-block";
     // Paint "loading" immediately, before either fetch resolves, so the badges never sit on a stale
@@ -1769,12 +1820,15 @@
         client.from("tutoring_students").select("id,name,active"),
         client.from("tutoring_rate_history").select("*")
       ]);
+      if(myGen!==loadGen) return; // mode switched again mid-fetch; don't clobber whatever's current now
       var metrics=(r[0].data&&r[0].data[0])||null;
       S.workouts=r[1].data||[]; S.weights=r[2].data||[]; S.lessons=normaliseTutoringLessons(r[3].data||[],r[6].data||[],r[7].data||[]); S.timedGigs=r[4].data||[]; S.relationshipEvents=r[5].data||[];
       showView("app"); footNote();
       S.money=Object.assign({},DEFAULT_TARGETS,metrics||{});
       await mergeGigs(); // sets GIGS_STATE to "live" or "error"; runs regardless of whether the health tables are empty
+      if(myGen!==loadGen) return;
       await loadShabbatAudit();
+      if(myGen!==loadGen) return;
       if(!metrics && S.workouts.length===0 && S.weights.length===0 && S.lessons.length===0){
         HEALTH_STATE="live"; // connected to Supabase fine, the tables are just empty
         showEmptyState(); paintSourceBadges(); setSynced("connected · empty"); return;
@@ -1783,6 +1837,7 @@
       setSynced(syncLabelFromDate(new Date()));
       render();
     }catch(e){
+      if(myGen!==loadGen) return; // a stale/abandoned load failing shouldn't error out the load that superseded it
       HEALTH_STATE="error"; if(GIGS_STATE==="loading") GIGS_STATE="error";
       showView("app");
       document.getElementById("verdictLead").textContent="Could not read the database.";
