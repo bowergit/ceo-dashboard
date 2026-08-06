@@ -56,13 +56,13 @@ computes stats client-side — no table stores a pre-aggregated count).
 
 | Table | Written by | Read by | RLS |
 |---|---|---|---|
-| `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | anon read/write (pre-existing, not tightened) |
-| `workouts` | Apps Script `syncWorkoutsToSupabase()` / legacy wrapper `syncCalendarToSupabase()` (**service_role** key) | `index.html` Live mode | **RLS disabled** — flagged, not fixed. Anyone with the anon key can read/write this table. |
+| `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | SELECT restricted to the two-account allowlist below. No anon/public policy exists — this table's row is only ever read by an owner session; writes happen via the Supabase dashboard directly (project-owner context, outside RLS), never through the app. (An earlier version of this doc said "anon read/write" here — that was never actually true against the live policy set; corrected 2026-08-06.) |
+| `workouts` | Apps Script `syncWorkoutsToSupabase()` / legacy wrapper `syncCalendarToSupabase()` (**service_role** key) | `index.html` Live mode | **Fixed 2026-08-06** (was: RLS disabled entirely — anyone with the anon key could read/write it). RLS now on, SELECT restricted to the two-account allowlist. The vestigial `anon insert` policy was dropped too — the real writer uses service_role, which bypasses RLS regardless, so no app ever needed anon insert on this table. |
 | `workouts.status` | text, default `'completed'`, check `in ('scheduled','completed')` (added 2026-07-27) — the sync window now also covers today through Saturday of the *current* week (still `LOOKBACK_DAYS` back for the past), which is the part that actually matters: without it, nothing not-yet-happened was in the table at all. **The dashboard does not read this column.** It derives done-vs-planned purely from the date: a session counts as done only once its day has fully passed. `status` is stamped from the event's start time, so a 7am session flips to `'completed'` at 7am whether or not Daniel actually trained — which had the dashboard telling him he'd done workouts he hadn't (2026-07-29). The date rule can't make that mistake. Column is kept because it's accurate metadata about the sync, not because anything depends on it. | |
-| `weights` | iPhone Shortcut, daily 11am (anon key) — see below | `index.html` Live mode | RLS enabled, but has a redundant "anon read = true" policy that defeats its own owner-only policy — same class of gap as `workouts`, flagged, not fixed |
-| `tutoring_lessons`, `tutoring_students`, `tutoring_rate_history` | [`bowergit/tutoring`](https://github.com/bowergit/tutoring) app | `index.html` Live mode | public read with anon key as of 2026-07-15 |
-| `relationship_events` | Apps Script `syncRelationshipEventsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
-| `timed_gigs` | Apps Script `syncTimedGigsToSupabase()` (**service_role** key) | `index.html` Live mode | **owner-read only, zero public write policy** |
+| `weights` | iPhone Shortcut, daily 11am (anon key) — see below | `index.html` Live mode | **Fixed 2026-08-06** (was: a redundant `qual: true` anon-read policy meant literally anyone with the public anon key — no login at all — could read every weight entry). That policy is dropped; SELECT is now restricted to the two-account allowlist. Anon INSERT/UPDATE are unchanged and still fully open (`qual: true`) — the Shortcut has no other credential, so this is a deliberate, known trade-off: anyone with the anon key can still *write* a row (or overwrite an existing date), just not *read* the table. Tightening writes further (e.g. a shared secret in the request) would need a Shortcut change too; flagged, not done. |
+| `tutoring_lessons`, `tutoring_students`, `tutoring_rate_history` | [`bowergit/tutoring`](https://github.com/bowergit/tutoring) app | `index.html` Live mode | Tenant-isolated (`owner_id = auth.uid()`, policy `tenant_rw`, covers SELECT/INSERT/UPDATE/DELETE) — this is the tutoring app's real multi-tenant model for its actual other users, not a Daniel-only gate, and the CEO dashboard security pass (2026-08-06) deliberately left it alone. What protects Daniel's tutoring data from another tutoring-app tenant *inside the CEO dashboard* isn't this policy — it's the dashboard's own login gate never running any query at all unless the session is one of the two allowlisted accounts. (This doc previously said "public read with anon key as of 2026-07-15" — stale; corrected 2026-08-06 to match the live policy.) |
+| `relationship_events` | Apps Script `syncRelationshipEventsToSupabase()` (**service_role** key) | `index.html` Live mode | SELECT restricted to the two-account allowlist (was a single hardcoded email — widened 2026-08-06 to cover both of Daniel's accounts). Zero public write policy. |
+| `timed_gigs` | Apps Script `syncTimedGigsToSupabase()` (**service_role** key) | `index.html` Live mode | SELECT restricted to the two-account allowlist (was a single hardcoded email — widened 2026-08-06 to cover both of Daniel's accounts). Zero public write policy. |
 
 `relationship_events`/`timed_gigs` are the newer pattern (2026-07-15 onward): the sync uses the
 Supabase **service_role** key, which bypasses RLS entirely and runs only inside Apps Script
@@ -80,6 +80,57 @@ Revenue trajectory is also computed client-side. Magic projects current-year act
 weighted months, with November and December deliberately heavier for the Christmas season. Maths
 projects each visible student as `rate * 40 lessons/year`, scaled from the student's first logged or
 scheduled lesson in the year, so future-starting students only count from when they appear.
+
+### Access control — hard allowlist, not "authenticated"
+
+This Supabase project ("Bower OS", `uilytgubukiinyrqrltj`) is shared across more than one of
+Daniel's apps — the tutoring CRM ([`bowergit/tutoring`](https://github.com/bowergit/tutoring)) uses
+it too, and has its own real users signing up for their own accounts on the same project. That
+means **a valid Supabase session on this project is not the same thing as "is Daniel"** — anyone
+with a real account on *any* app sharing this project can authenticate against it. Before
+2026-08-06, `index.html`'s Live-mode gate was exactly `if(!session)`, i.e. "is there a session at
+all" — any of those accounts would pass. Combined with `workouts` having RLS off entirely and
+`weights` having a wide-open anon-read policy, this meant another tenant's Supabase account could
+log into the CEO dashboard and actually see Daniel's real workout/weight data rendered.
+
+Fixed the same way in both places it needed fixing, kept in sync by hand (nothing enforces that
+automatically, so if either changes the other needs re-checking):
+
+- **App-level** (`index.html`): a hard `ALLOWED_USER_IDS` allowlist of exactly two Supabase user
+  ids, checked once, in the one place `loadLive()` is about to fetch anything. Anything else —
+  including a genuinely valid session on this project — is signed out immediately (not just
+  redirected to the login screen while still holding an active foreign session) and shown "That
+  account isn't authorised for this dashboard."
+- **RLS-level**: SELECT on `metrics`, `workouts`, `weights`, `relationship_events`, `timed_gigs` is
+  restricted to `auth.uid() IN (...)` against the same two ids. This is what actually matters —
+  the app-level check alone would stop a browser hitting this specific page, but does nothing
+  against someone calling the Supabase REST API directly with their own valid token.
+
+The two allowlisted ids (also in `index.html` and in the migration that set these policies):
+
+| Account | Supabase user id |
+|---|---|
+| `danielbowermagic@gmail.com` | `babb06b5-b5e0-4436-8b72-bc5556814956` |
+| `daniel.b.bower@gmail.com` | `80ee6bad-92f7-4536-8db2-9c645d24f4b1` |
+
+**Do not add a broader path in alongside this allowlist** — no `authenticated OR is-owner`, no
+"admin" flag, no second policy on these tables that grants access some other way. A second,
+looser path in is the exact bug class this exists to rule out (and is what caused a real cross-
+tenant data leak in the tutoring app, independently found and fixed the same day this was written).
+If you need to grant a new person access to the CEO dashboard specifically, add their id to both
+`ALLOWED_USER_IDS` in `index.html` and every `auth.uid() IN (...)` policy above — don't reach for
+`is_app_owner()`. That function exists in this project (used by the tutoring app previously) but
+is now a permanent no-op (`SELECT false`) specifically so it can't be silently reintroduced into a
+policy — leave it that way.
+
+`tutoring_lessons`/`tutoring_students`/`tutoring_rate_history` are the one deliberate exception:
+they stay on the tutoring app's own `owner_id = auth.uid()` tenant-isolation policy, not this
+allowlist, because that policy is what lets the tutoring app's *other* real users see their own
+data — it's a different app's actual multi-tenant model, not a hole in this one. What protects
+Daniel's tutoring data from another tenant *inside the CEO dashboard specifically* is that the
+dashboard's login gate refuses to run any query at all unless the session is on the allowlist —
+so another tenant's session never reaches these tables from this app, even though RLS itself would
+technically let them read rows they own.
 
 ### iPhone Shortcut — weight data
 
@@ -153,10 +204,11 @@ Zapier, to avoid burning Daniel's Zapier task quota on what's normally a one-off
 
 ## Known gaps (flagged, not yet fixed)
 
-- `workouts` table: RLS disabled entirely — anyone with the public anon key can read/write it.
-- `weights` table: has RLS enabled, but a redundant `qual: true` "anon read" policy makes its
-  more-restrictive owner-only policy moot in practice — same exposure as `workouts`, just via a
-  policy bug instead of RLS being off.
-- Both are lower priority than they sound, since the anon key is already public in `index.html`
-  regardless — the actual risk is someone deliberately probing the API, not something a normal
-  dashboard visitor could stumble into.
+- `weights` table: anon INSERT/UPDATE are still fully open (`qual: true`, no restriction) — the
+  iPhone Shortcut has no other credential to write with, so this is a deliberate trade-off, not an
+  oversight. Anyone with the public anon key can still write a row or overwrite an existing date's
+  value; they just can't *read* the table any more (fixed 2026-08-06 — see "Access control" above).
+  Tightening writes further would need a Shortcut change (e.g. a shared secret in the request) and
+  hasn't been done.
+- 2026-08-06 fixed: the two issues previously listed here (`workouts` RLS fully disabled;
+  `weights`' redundant anon-read policy) — see "Access control" above for what changed and why.

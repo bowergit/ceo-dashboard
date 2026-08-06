@@ -598,11 +598,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
     {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
     {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
     {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
     {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
-    {v:"1.27.0",d:"2026-07-31",note:"Today's attention cards now act as jump links: click or press Enter/Space and the dashboard scrolls to the relevant KPI or panel, briefly flashing it with a non-layout-shifting gold halo. Smooth scrolling respects reduced-motion preferences."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1330,7 +1330,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.31.0";
+    document.getElementById("versionLabel").textContent="v1.32.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1659,10 +1659,23 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.31.0";
+    document.getElementById("versionLabel").textContent="v1.32.0";
   }
 
   // ---------- modes ----------
+  // Hard allowlist by Supabase user id — the ONLY gate into Live mode. This project's Supabase
+  // instance ("Bower OS") is shared with other apps (e.g. the tutoring CRM), so "has a valid
+  // session" is not "is Daniel" — anyone with a real account on ANY app sharing this project can
+  // authenticate against it. id is used rather than email because it's the immutable identifier
+  // auth.uid() checks against in RLS (see the matching policies on metrics/workouts/weights/
+  // relationship_events/timed_gigs) — this list and those policies must be kept in sync by hand,
+  // there is nothing that enforces that automatically. Deliberately not "authenticated OR owner"
+  // — a second, broader path in is exactly the bug class this exists to rule out.
+  var ALLOWED_USER_IDS={
+    "babb06b5-b5e0-4436-8b72-bc5556814956":true, // danielbowermagic@gmail.com
+    "80ee6bad-92f7-4536-8db2-9c645d24f4b1":true  // daniel.b.bower@gmail.com
+  };
+  function isAllowedSession(sess){ return !!(sess&&sess.user&&ALLOWED_USER_IDS[sess.user.id]); }
   var mode="sample", sb=null;
   // Bumped at the start of every loadSample()/loadLive() call. Both functions are async with
   // several awaits, and neither used to check whether it was still the mode the user actually
@@ -1823,7 +1836,18 @@
     if(!client){ showView("config"); setSynced("not connected"); return; }
     var sess=(await client.auth.getSession()).data.session;
     if(myGen!==loadGen) return;
-    if(!sess){ showView("login"); setSynced("signed out"); document.getElementById("logoutBtn").style.display="none"; return; }
+    if(!isAllowedSession(sess)){
+      // A real, valid Supabase session that just isn't Daniel's — someone else's account on this
+      // shared project. Sign it out rather than leaving it sitting active in this browser (so a
+      // stray click on "Live" a minute later can't silently re-enter without re-authenticating),
+      // and say so plainly rather than looking identical to a normal signed-out state.
+      if(sess){
+        try{ await client.auth.signOut(); }catch(e){}
+        document.getElementById("loginMsg").textContent="That account isn't authorised for this dashboard.";
+      }
+      showView("login"); setSynced("signed out"); document.getElementById("logoutBtn").style.display="none";
+      return;
+    }
     document.getElementById("logoutBtn").style.display="inline-block";
     // Paint "loading" immediately, before either fetch resolves, so the badges never sit on a stale
     // state (e.g. last session's SAMPLE) while data is genuinely in flight.
