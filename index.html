@@ -33,6 +33,9 @@
     --text:#E7ECF2; --muted:#8B97A6; --faint:#5C6774;
     --gold:#C9A24B; --gold-dim:#8f7233;
     --ok:#3FB950; --ok-light:#7ED77A; --watch:#D29922; --behind:#F85149; --r:12px;
+    /* Purely categorical (gym vs cardio), not a severity colour like ok/watch/behind, so it gets
+       its own hue rather than reusing one of those and implying "cardio is the bad one". */
+    --cardio:#4FA3D1; --cardio-dim:#2f6f92;
   }
   *{box-sizing:border-box} html,body{margin:0}
   html{overflow-x:hidden;touch-action:pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -169,17 +172,33 @@
   .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal;width:100%;background:rgba(255,255,255,.05);border-radius:4px;padding:2px 4px}
   .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
   .wd.on .type{color:var(--text);font-weight:700;background:rgba(0,0,0,.16)}
+  /* Cardio chips get a blue tint instead of the neutral dark one, so gym vs cardio is readable
+     per-session, not just in the aggregate KPI/graph. */
+  .wd.on .type.cardio{background:rgba(79,163,209,.38)}
+  .wd.scheduled .type.cardio{color:var(--cardio);border-color:rgba(79,163,209,.45)}
   /* Scheduled = on the calendar but hasn't happened yet, so it's deliberately hollow/dashed
      rather than the solid gold fill .on uses for a done workout — same info, different colour
      so "done" and "not done yet" never look identical. */
   .wd.scheduled{background:transparent;border:1px dashed var(--gold-dim);color:var(--muted)}
   .wd.scheduled .type{color:var(--gold-dim);font-weight:600;background:transparent;border:1px dashed rgba(201,162,75,.4)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
+  .cat-legend{margin-left:8px;display:inline-flex;align-items:center;white-space:nowrap}
+  .cat-legend .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 4px 0 8px}
+  .cat-legend .dot:first-child{margin-left:0}
+  .cat-legend .dot.gym{background:var(--gold)}
+  .cat-legend .dot.cardio{background:var(--cardio)}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
   .bar-current-highlight{position:absolute;bottom:0;right:0;width:calc((100% - 42px) / 8);height:100%;background:rgba(201,162,75,.06);border-radius:4px 4px 0 0;z-index:0;pointer-events:none}
-  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease;z-index:1}
+  /* overflow:hidden clips the two stacked segments to the bar's own rounded top corner, regardless
+     of which segment (gym or cardio) ends up tallest/topmost — simpler than conditionally rounding
+     whichever segment happens to be on top. display:flex + column-reverse stacks gym (first child)
+     at the bottom and cardio (second child) above it, each sized to its own share of the total. */
+  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;overflow:hidden;display:flex;flex-direction:column-reverse;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease;z-index:1}
   .bar:hover{opacity:0.8}
   .bar.selected{outline:1px solid var(--gold);outline-offset:2px}
+  .bar-seg{width:100%;flex:none}
+  .bar-seg.gym{background:var(--gold)}
+  .bar-seg.cardio{background:var(--cardio)}
   .bar span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--faint)}
   /* Dashed ghost sitting on top of the current week's solid bar, showing where the week lands if
      everything still in the calendar actually happens. Dashed and hollow on purpose — it must not
@@ -485,7 +504,7 @@
       </details>
     </div>
 
-    <div class="sect-title"><h2>Health and discipline <span id="healthBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 2 fine · 3 good · 4 great per week</span></div>
+    <div class="sect-title"><h2>Health and discipline <span id="healthBadge" style="margin-left:4px"></span></h2><span class="small faint">target: 3 gym + 3 cardio = 6 per week</span></div>
     <div class="grid g2">
       <div class="panel flash-target" id="workoutPanel">
         <div class="lab muted small" id="workoutWeekTitle">Workouts this week</div>
@@ -598,11 +617,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
     {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
     {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
     {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
     {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
-    {v:"1.28.0",d:"2026-08-01",note:"Weight goalpost moved: readings at or under baseline-1kg (89kg at the default 90kg baseline) now read fully green, baseline-1 to baseline (89-90kg) reads a lighter green, and it tightens through watch/behind above that — replacing three call sites that had each drifted to a different diff threshold over time with one shared scale. Money/Momentum/Discipline subscores under the readiness gauge are now click/tap targets that jump to wherever each is actually computed from (income, YTD trajectory, and workouts/weight respectively), same pattern as the attention cards. Fixed a real bug: switching Sample -> Live -> Sample -> Live fast enough (e.g. clicking Sample while a Live load was still in flight) could let the earlier, slower load's tail finish last and silently overwrite the newer, correct one — mode switches are now generation-tagged so only the most recent one can touch the screen."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -802,7 +821,7 @@
         booked_this_week:1,booked_this_month:3,booked_month_value:1800,
         social_target_min:3,social_target_max:5,aimee_target_week:1,
         ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,
-        survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,
+        survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:6,workouts_great:7,
         magic_upcoming:[
           {date:fri1,event:"Wedding drinks reception",amount:650},
           {date:sat1,event:"Corporate mixer",amount:850},
@@ -829,7 +848,7 @@
       workouts:wk, weights:wt, lessons:ls
     };
   }
-  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:3,workouts_great:4,social_target_min:3,social_target_max:5,aimee_target_week:1};
+  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:6,workouts_great:7,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
   var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
@@ -901,6 +920,23 @@
   function workoutsThisWeek(){ return workoutsInWeek(weekKey(new Date())).length; }
   function workoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk&&workoutIsDone(w);}); }
   function scheduledWorkoutsInWeek(wk){ return S.workouts.filter(function(w){return weekKey(dateObj(w.date))===wk&&!workoutIsDone(w);}); }
+  // Weekly exercise target split: 3 gym + 3 cardio = 6. Gym isn't a positive keyword match — it's
+  // "everything that's already counted as a workout (CST/security-volunteer shifts are filtered
+  // out server-side before this data even arrives) that ISN'T cardio". Kept in sync by hand with
+  // metrics.workouts_good (6) / workouts_great (7) — those still drive the combined pace/score
+  // curve, these two just define how the combined target splits for display.
+  var WORKOUT_GYM_TARGET=3, WORKOUT_CARDIO_TARGET=3;
+  // Case-insensitive, word-boundary-prefixed so one root covers every inflection (walk/walking,
+  // run/running, cycle/cycling, etc.) without enumerating every form, and so "run" can't match
+  // mid-word (e.g. "brunch" — \b requires a word-boundary immediately before the match).
+  var CARDIO_TITLE_RE=/\b(walk|run|cycl|bik|krav|bjj|jiu|grappl|wrestl)/i;
+  function isCardioWorkout(w){ return CARDIO_TITLE_RE.test(w.type||""); }
+  // .test() short-circuits on the first matching keyword, so an event matching several (e.g.
+  // "Wrestling & Grappling") is still only ever counted once here.
+  function splitByCategory(list){
+    var cardio=list.filter(isCardioWorkout), gym=list.filter(function(w){return !isCardioWorkout(w);});
+    return {all:list, gym:gym, cardio:cardio};
+  }
   // Social/Aimee counts are computed client-side from raw event rows, same as workouts — no
   // pre-aggregated count to go stale. Source events come from relationship_events (Supabase,
   // synced daily by Apps Script from the Social/Aimee Google Calendars) or sample fictional data.
@@ -1202,8 +1238,12 @@
     if(haveHealth){
       // Booked-aware: a session still in the diary counts toward the score, so the number doesn't
       // crater on a Monday just because the week hasn't happened yet.
-      var c=workoutsThisWeek()+scheduledWorkoutsInWeek(weekKey(new Date())).length, good=m.workouts_good||3, great=m.workouts_great||4;
-      var wS=c>=great?10:c>=good?8:c===2?6:c===1?3:0;
+      var c=workoutsThisWeek()+scheduledWorkoutsInWeek(weekKey(new Date())).length, good=m.workouts_good||6, great=m.workouts_great||7;
+      // Proportional tiers, not hardcoded absolute counts — this used to be c===2?6:c===1?3:0,
+      // tuned for a target of 3. That silently broke once the target became 6: doing 4 or 5
+      // real sessions matched neither "===2" nor "===1" and scored a flat 0. Math.ceil(good/2)
+      // reproduces the same shape (great/good/half-good/some/none) for whatever good/great are.
+      var wS=c>=great?10:c>=good?8:c>=Math.ceil(good/2)?6:c>0?3:0;
       var lw=latestWeight(), trend=weightTrend(), wtS=6;
       if(trend!=null) wtS = trend<=0?10 : trend<=1?7 : 4; // trending down/flat vs a week ago is what matters, not a hard absolute line
       else if(lw!=null){ var gp=weightGoalpost(lw,m.weight_baseline||90); wtS=gp.cls==="great"?9:gp.cls==="good"?7:gp.cls==="watch"?5:3; } // softened fallback when there's no week-ago reading yet
@@ -1292,10 +1332,17 @@
     var monthLessons=lessonMonthStats(0).rows.length;
     items.push({kind:"ok",label:"Lessons",target:"kpi-lessons",msg:monthLessons+" lesson"+(monthLessons===1?"":"s")+" booked this month."});
     var planned=scheduledWorkoutsInWeek(weekKey(new Date())).length, bookedTotal=c+planned;
-    if(c>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done this week — target of "+good+" already hit. Keep it repeatable."});
-    else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done, "+planned+" still in the diary — on track to hit "+good+" if you show up."});
-    else if(bookedTotal>0) items.push({kind:"watch",label:"Training",target:"kpi-workouts",msg:c+" done, "+planned+" booked — that's "+(good-bookedTotal)+" short of "+good+". Get "+(good-bookedTotal)+" more in the calendar."});
-    else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",target:"kpi-workouts",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+good+" in the diary.":"Book "+good+" now before the week runs out.")});
+    var gymDoneCt=splitByCategory(workoutsInWeek(weekKey(new Date()))).gym.length;
+    var cardioDoneCt=splitByCategory(workoutsInWeek(weekKey(new Date()))).cardio.length;
+    var gymShort=Math.max(0,WORKOUT_GYM_TARGET-gymDoneCt), cardioShort=Math.max(0,WORKOUT_CARDIO_TARGET-cardioDoneCt);
+    // Hitting the combined total isn't the same as hitting the intended 3+3 split — a week of 6
+    // cardio and 0 gym would previously have read as an unqualified "target hit". Demote that to
+    // watch and say which half is short, rather than letting a lopsided week look like a good one.
+    if(c>=good&&gymShort===0&&cardioShort===0) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done this week — "+gymDoneCt+" gym, "+cardioDoneCt+" cardio. Target hit and balanced. Keep it repeatable."});
+    else if(c>=good) items.push({kind:"watch",label:"Training",target:"kpi-workouts",msg:c+" done this week ("+gymDoneCt+" gym, "+cardioDoneCt+" cardio) — hit "+good+" total, but "+(gymShort>0?gymShort+" more gym session"+(gymShort===1?"":"s"):cardioShort+" more cardio session"+(cardioShort===1?"":"s"))+" short of a balanced week."});
+    else if(bookedTotal>=good) items.push({kind:"ok",label:"Training",target:"kpi-workouts",msg:c+" done ("+gymDoneCt+"g/"+cardioDoneCt+"c), "+planned+" still in the diary — on track to hit "+good+" if you show up."});
+    else if(bookedTotal>0) items.push({kind:"watch",label:"Training",target:"kpi-workouts",msg:c+" done ("+gymDoneCt+"g/"+cardioDoneCt+"c), "+planned+" booked — that's "+(good-bookedTotal)+" short of "+good+". Get "+(good-bookedTotal)+" more in the calendar."});
+    else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",target:"kpi-workouts",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+WORKOUT_GYM_TARGET+" gym + "+WORKOUT_CARDIO_TARGET+" cardio in the diary.":"Book "+good+" now before the week runs out.")});
     if(lw==null) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
       var trend=weightTrend();
@@ -1330,7 +1377,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.32.0";
+    document.getElementById("versionLabel").textContent="v1.33.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1355,9 +1402,11 @@
     }).join("");
     wireSubscoreJumps();
 
-    var c=workoutsThisWeek(),good=m.workouts_good||3,great=m.workouts_great||4,lw=latestWeight();
+    var c=workoutsThisWeek(),good=m.workouts_good||6,great=m.workouts_great||7,lw=latestWeight();
     var plannedWk=scheduledWorkoutsInWeek(weekKey(new Date())).length;
     var pace=workoutPace(c,good,great,plannedWk), wkClass=pace.cls, wkLabel=pace.label;
+    var doneSplitWk=splitByCategory(workoutsInWeek(weekKey(new Date())));
+    var gymDoneWk=doneSplitWk.gym.length, cardioDoneWk=doneSplitWk.cardio.length;
     var lessonsWk=lessonsThisWeek(), lessonLoad=lessonLoadPace(lessonsWk);
     function within(d,days,fut){ var x=(new Date(d)-new Date())/86400000; return fut? (x>=0&&x<=days):(x<=0&&x>=days); }
     var mathsCurrent=lessonMonthStats(0), mathsDisplay=lessonMonthStats(selectedMathsMonthOffset);
@@ -1402,7 +1451,7 @@
       {id:"kpi-lessons",lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-ytd",lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-outlook",lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
-      {id:"kpi-workouts",lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:(plannedWk>0?pv(plannedWk)+" more booked · ":"")+"weight "+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
+      {id:"kpi-workouts",lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:'<span style="color:var(--gold);font-weight:600">Gym '+pv(gymDoneWk)+'/'+WORKOUT_GYM_TARGET+'</span> · <span style="color:var(--cardio);font-weight:600">Cardio '+pv(cardioDoneWk)+'/'+WORKOUT_CARDIO_TARGET+'</span>'+(plannedWk>0?' · '+pv(plannedWk)+' more booked':'')+' · weight '+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
       {id:"kpi-shabbat",lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken")),title:sh.summary||"Hebcal London audit"},big:shBig,foot:((sh.brokenSlots||0)>0?pv(sh.brokenSlots)+" broken this month":"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
@@ -1440,25 +1489,28 @@
     // week dots (Sunday start)
     var currentWeek=weekKey(new Date()),displayWeek=selectedWorkoutWeek||currentWeek,displayWorkouts=workoutsInWeek(displayWeek),byDay={};
     document.getElementById("workoutWeekTitle").textContent=displayWeek===currentWeek?"Workouts this week":"Workouts "+weekRangeLabel(displayWeek);
-    displayWorkouts.forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push(w.type); });
+    // Push {type,cardio} rather than just the title string, so each day chip can be coloured by
+    // category — gym vs cardio needs to be visible per-session, not only in the aggregate counts.
+    displayWorkouts.forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDay[dd]=byDay[dd]||[]).push({type:w.type,cardio:isCardioWorkout(w)}); });
     // Scheduled (not-yet-happened) workouts only ever exist for the current week — the sync only
     // looks that far ahead — so a past week navigated to via the bars below never has any.
     var byDaySched={};
     if(displayWeek===currentWeek){
-      scheduledWorkoutsInWeek(displayWeek).forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDaySched[dd]=byDaySched[dd]||[]).push(w.type); });
+      scheduledWorkoutsInWeek(displayWeek).forEach(function(w){ var dd=dateObj(w.date).getDay(); (byDaySched[dd]=byDaySched[dd]||[]).push({type:w.type,cardio:isCardioWorkout(w)}); });
     }
     var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
-      var on=byDay[i], sched=byDaySched[i], label=on||sched||["Rest"];
+      var on=byDay[i], sched=byDaySched[i], entries=on||sched||[{type:"Rest",cardio:false}];
       // .selected used to be applied to every day cell whenever viewing a past week, not just
       // the ones with a workout on them — every day got a gold ring regardless of .on, which
       // read as "these days are special" when they weren't. .on (gold fill) already carries
       // that meaning; the section title + "This week" button already say you're viewing history.
       var cls=on?" on":sched?" scheduled":"";
-      var title=on?on.join(", "):sched?sched.join(", ")+" — planned, not done yet":"No workout logged";
+      var titleList=(on||sched||[]).map(function(e){return e.type;});
+      var title=on?titleList.join(", "):sched?titleList.join(", ")+" — planned, not done yet":"No workout logged";
       // esc() like every other data-driven bit of markup here — these are raw Google Calendar
       // titles, so a quote or angle bracket in an event name broke the tile until now.
-      html+='<div class="wd'+cls+'" title="'+esc(title)+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+label.map(function(t){return '<span class="type">'+esc(t)+'</span>';}).join("")+'</span></div>';
+      html+='<div class="wd'+cls+'" title="'+esc(title)+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+entries.map(function(e){return '<span class="type'+(e.cardio?" cardio":"")+'">'+esc(e.type)+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
     var doneWk=displayWorkouts.length, planWk=displayWeek===currentWeek?scheduledWorkoutsInWeek(displayWeek).length:0;
@@ -1466,7 +1518,9 @@
     if(doneWk>=good) summaryTail='<span style="color:var(--ok)" title="'+esc(workoutPillTitle(doneWk,good,great,planWk))+'">target hit</span>';
     else if(doneWk+planWk>=good) summaryTail='<span style="color:var(--ok)">on track to hit '+pv(good)+'</span>';
     else summaryTail=pv(good-doneWk-planWk)+" more to book to hit "+pv(good);
-    document.getElementById("weekSummary").innerHTML=pv(doneWk)+" done"+(planWk>0?" · "+pv(planWk)+" planned":"")+" · "+summaryTail+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
+    var doneSplitDisplay=splitByCategory(displayWorkouts);
+    var legend=' <span class="cat-legend"><span class="dot gym"></span>Gym '+pv(doneSplitDisplay.gym.length)+'/'+WORKOUT_GYM_TARGET+'<span class="dot cardio"></span>Cardio '+pv(doneSplitDisplay.cardio.length)+'/'+WORKOUT_CARDIO_TARGET+'</span>';
+    document.getElementById("weekSummary").innerHTML=pv(doneWk)+" done"+(planWk>0?" · "+pv(planWk)+" planned":"")+" · "+summaryTail+legend+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
     var resetBtn=document.getElementById("resetWeekBtn");
     if(resetBtn){ resetBtn.addEventListener("click",function(){ selectedWorkoutWeek=null; render(); }); }
 
@@ -1474,23 +1528,30 @@
     var now=new Date(),weeks=[];
     for(var w2=7;w2>=1;w2--){ var d=new Date(now); d.setDate(d.getDate()-w2*7); weeks.push(weekKey(d)); }
     weeks.push(weekKey(now)); // current week last, sits under the shaded column
-    var counts=weeks.map(function(wk){ return workoutsInWeek(wk).length; });
+    var weekSplits=weeks.map(function(wk){ return splitByCategory(workoutsInWeek(wk)); });
+    var counts=weekSplits.map(function(s){ return s.all.length; });
     // Only the current week (last bar) can have anything still scheduled — the sync doesn't look
     // past this Saturday. Scale headroom includes it so a big planned week isn't drawn off the top.
     var BARS_H=64;
     var mx=Math.max(4,Math.max.apply(null,counts),counts[7]+plannedWk);
     document.getElementById("weekBars").innerHTML='<div class="bar-current-highlight"></div>'+counts.map(function(cc,idx){
-      var h=Math.round(cc/mx*100),col=cc>=good?"var(--gold)":cc>0?"var(--gold-dim)":"var(--panel-2)",lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
+      var h=Math.round(cc/mx*100),lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
       var wk=weeks[idx],d2=dateObj(wk);d2.setDate(d2.getDate()+6);
       var range=fmtD(wk)+" to "+fmtD(iso(d2));
       var isNow=idx===7, plannedHere=isNow?plannedWk:0;
+      var gymCc=weekSplits[idx].gym.length, cardioCc=weekSplits[idx].cardio.length;
       // The last bar is the week in progress, so its count is only what's done so far — say that,
       // rather than letting a part-finished week look like a badly underperforming finished one.
-      var tooltip=cc+' workout'+(cc!==1?'s':'')+(isNow?' done so far':'')+(plannedHere?' · '+plannedHere+' still planned (heading for '+(cc+plannedHere)+')':'')+' ('+range+')';
+      var tooltip=cc+' workout'+(cc!==1?'s':'')+(isNow?' done so far':'')+' — '+gymCc+' gym, '+cardioCc+' cardio'+(plannedHere?' · '+plannedHere+' still planned (heading for '+(cc+plannedHere)+')':'')+' ('+range+')';
       // Sized in px off the fixed 64px track rather than a percentage, because a percentage height
       // on an absolutely positioned child resolves against the BAR's height, not the chart's.
+      // Stacked, not flat-coloured: gym segment (bottom) sized to its own share of the same
+      // BARS_H/mx scale as the bar's own height, cardio segment (top) makes up the rest — so the
+      // two segments' combined height always equals the bar's height, whatever the split.
+      var gymH=(gymCc*(BARS_H/mx)).toFixed(1), cardioH=(cardioCc*(BARS_H/mx)).toFixed(1);
+      var segs='<div class="bar-seg gym" style="height:'+gymH+'px"></div><div class="bar-seg cardio" style="height:'+cardioH+'px"></div>';
       var ghost=plannedHere?'<div class="bar-planned" style="height:'+(plannedHere*(BARS_H/mx)).toFixed(1)+'px"></div>':'';
-      return '<div class="bar'+(wk===displayWeek?' selected':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%;background:'+col+'" title="'+esc(tooltip)+'">'+ghost+'<div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
+      return '<div class="bar'+(wk===displayWeek?' selected':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%" title="'+esc(tooltip)+'">'+segs+ghost+'<div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
     }).join("");
     document.querySelectorAll("#weekBars .bar").forEach(function(bar){
       bar.addEventListener("click",function(){ selectedWorkoutWeek=bar.getAttribute("data-week"); render(); });
@@ -1659,7 +1720,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.32.0";
+    document.getElementById("versionLabel").textContent="v1.33.0";
   }
 
   // ---------- modes ----------
