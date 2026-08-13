@@ -172,9 +172,16 @@
   .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal;width:100%;background:rgba(255,255,255,.05);border-radius:4px;padding:2px 4px}
   .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
   .wd.on .type{color:var(--text);font-weight:700;background:rgba(0,0,0,.16)}
-  /* Cardio chips get a blue tint instead of the neutral dark one, so gym vs cardio is readable
-     per-session, not just in the aggregate KPI/graph. */
+  /* A day where every logged session is cardio recolours the WHOLE cell to match, using the exact
+     same recipe .on uses for gold but swapped to --cardio — so it reads as the same blue as the
+     bar-chart segments. Tinting just the inner chip (the old approach) sat a translucent blue over
+     an already gold-tinted cell, alpha-blending into a muddy teal that didn't match the bar at all. */
+  .wd.on.cardio-day{background:rgba(79,163,209,.14);border-color:var(--cardio-dim);color:var(--cardio)}
+  .wd.on.cardio-day .type{background:rgba(79,163,209,.3)}
+  /* Mixed day (some gym, some cardio) keeps the gold cell — can't commit the whole cell to one
+     colour — but still tints its own chip so the split stays visible per-session. */
   .wd.on .type.cardio{background:rgba(79,163,209,.38)}
+  .wd.scheduled.cardio-day{border-color:var(--cardio-dim);color:var(--cardio)}
   .wd.scheduled .type.cardio{color:var(--cardio);border-color:rgba(79,163,209,.45)}
   /* Scheduled = on the calendar but hasn't happened yet, so it's deliberately hollow/dashed
      rather than the solid gold fill .on uses for a done workout — same info, different colour
@@ -182,8 +189,8 @@
   .wd.scheduled{background:transparent;border:1px dashed var(--gold-dim);color:var(--muted)}
   .wd.scheduled .type{color:var(--gold-dim);font-weight:600;background:transparent;border:1px dashed rgba(201,162,75,.4)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
-  .cat-legend{margin-left:8px;display:inline-flex;align-items:center;white-space:nowrap}
-  .cat-legend .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 4px 0 8px}
+  .cat-legend{display:inline-flex;align-items:center;white-space:nowrap}
+  .cat-legend .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 5px 0 10px}
   .cat-legend .dot:first-child{margin-left:0}
   .cat-legend .dot.gym{background:var(--gold)}
   .cat-legend .dot.cardio{background:var(--cardio)}
@@ -617,11 +624,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.34.0",d:"2026-08-06",note:"Fixed a cardio-day cell in the day-grid not visually matching the bar chart's blue: tinting just the inner chip meant a translucent blue sat on top of an already gold-tinted cell, alpha-blending into a muddy teal instead of the clean blue used everywhere else. A day where every session is cardio now recolours the whole cell (same recipe .on already used for gold, swapped to the cardio colour) — a mixed gym+cardio day still keeps the gold cell with just its own chip tinted. Also tightened the Gym/Cardio legend spacing, which was running together into one dense line — it's now its own '· ' separated segment matching the line's existing convention, with a non-breaking space between each label and its count so it can't visually collapse."},
     {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
     {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
     {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
     {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
-    {v:"1.29.0",d:"2026-08-01",note:"Fixed the weight chart hover target on desktop: the hit-area rect spans the whole SVG (deliberately, so a touch doesn't need to land exactly on a 3px dot), but that also covers the axis-label margins around the actual plotted rectangle, and X-matching had no bounds check — so hovering well outside the chart, over the '90kg' label or the date labels, still resolved to a nearest point and drew a crosshair that didn't line up with the cursor. Now bails (and hides the crosshair) outside the true plotted area instead of always matching something."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1377,7 +1384,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.33.0";
+    document.getElementById("versionLabel").textContent="v1.34.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1451,7 +1458,7 @@
       {id:"kpi-lessons",lab:"Lessons "+mathsDisplay.bounds.label,nav:"maths",pill:{c:lessonLoad.cls,t:lessonLoad.label,title:lessonLoadTitle(lessonsWk)},big:String(mathsDisplay.rows.length),foot:pv(lessonsWk)+" this week · "+pv(mathsDisplay.done.length)+" done · "+pv(mathsDisplay.planned.length)+" planned · "+pv(gbp(mathsDisplay.total))+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-ytd",lab:"Turnover YTD",big:gbp(rev.totalYtd),money:true,foot:"magic "+pv(gbp(rev.magicYtd))+" · maths "+pv(gbp(rev.mathsYtd))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)},
       {id:"kpi-outlook",lab:"Year-end outlook",big:gbp(rev.totalProjected),money:true,title:"Projection assumptions: magic uses current-year pace with November and December weighted heavier; maths assumes 40 lessons per active student, counted from each student's first lesson.",foot:"projected: magic "+pv(gbp(rev.magicProjected))+" + maths "+pv(gbp(rev.mathsProjected))},
-      {id:"kpi-workouts",lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:'<span style="color:var(--gold);font-weight:600">Gym '+pv(gymDoneWk)+'/'+WORKOUT_GYM_TARGET+'</span> · <span style="color:var(--cardio);font-weight:600">Cardio '+pv(cardioDoneWk)+'/'+WORKOUT_CARDIO_TARGET+'</span>'+(plannedWk>0?' · '+pv(plannedWk)+' more booked':'')+' · weight '+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
+      {id:"kpi-workouts",lab:"Workouts this week",pill:{c:wkClass,t:wkLabel,title:workoutPillTitle(c,good,great,plannedWk)},big:c+" / "+good,foot:'<span style="color:var(--gold);font-weight:600">Gym&nbsp;'+pv(gymDoneWk)+'/'+WORKOUT_GYM_TARGET+'</span> · <span style="color:var(--cardio);font-weight:600">Cardio&nbsp;'+pv(cardioDoneWk)+'/'+WORKOUT_CARDIO_TARGET+'</span>'+(plannedWk>0?' · '+pv(plannedWk)+' more booked':'')+' · weight '+(lw!=null?pv(lw+" kg"):"not logged")+srcTag("health",HEALTH_STATE)},
       {id:"kpi-shabbat",lab:"Shabbat protected",nav:"shabbat",pill:{c:shClass,t:sh.score==null?"checking":(sh.score>=1?"clear":(sh.score>=0.5?"watch":"broken")),title:sh.summary||"Hebcal London audit"},big:shBig,foot:((sh.brokenSlots||0)>0?pv(sh.brokenSlots)+" broken this month":"Hebcal London audit")+srcTag("gigs",HEALTH_STATE)}
     ];
     var magicCardValue=magicDisplay?magicDisplay.total:thisMonthValue, magicCardCount=magicDisplay?magicDisplay.count:thisMonthCount, magicCardLabel=magicDisplay?magicDisplay.bounds.label:(m.magic_this_month_label||"this month");
@@ -1506,6 +1513,10 @@
       // read as "these days are special" when they weren't. .on (gold fill) already carries
       // that meaning; the section title + "This week" button already say you're viewing history.
       var cls=on?" on":sched?" scheduled":"";
+      // Whole cell goes cardio-blue only when EVERY session that day is cardio — a mixed day (one
+      // gym, one cardio) can't commit the cell to a single colour, so it stays gold and leans on
+      // the per-chip tint instead.
+      if((on||sched)&&entries.length&&entries.every(function(e){return e.cardio;})) cls+=" cardio-day";
       var titleList=(on||sched||[]).map(function(e){return e.type;});
       var title=on?titleList.join(", "):sched?titleList.join(", ")+" — planned, not done yet":"No workout logged";
       // esc() like every other data-driven bit of markup here — these are raw Google Calendar
@@ -1519,7 +1530,11 @@
     else if(doneWk+planWk>=good) summaryTail='<span style="color:var(--ok)">on track to hit '+pv(good)+'</span>';
     else summaryTail=pv(good-doneWk-planWk)+" more to book to hit "+pv(good);
     var doneSplitDisplay=splitByCategory(displayWorkouts);
-    var legend=' <span class="cat-legend"><span class="dot gym"></span>Gym '+pv(doneSplitDisplay.gym.length)+'/'+WORKOUT_GYM_TARGET+'<span class="dot cardio"></span>Cardio '+pv(doneSplitDisplay.cardio.length)+'/'+WORKOUT_CARDIO_TARGET+'</span>';
+    // Prefixed with its own " · " (matching the separator already used between "done" and
+    // "planned" and before summaryTail above) instead of a bare margin — everything was running
+    // together into one dense line with nothing marking where the legend actually started.
+    // &nbsp; between the label and its count so the gap can't visually collapse at small sizes.
+    var legend=' · <span class="cat-legend"><span class="dot gym"></span>Gym&nbsp;'+pv(doneSplitDisplay.gym.length)+'/'+WORKOUT_GYM_TARGET+'<span class="dot cardio"></span>Cardio&nbsp;'+pv(doneSplitDisplay.cardio.length)+'/'+WORKOUT_CARDIO_TARGET+'</span>';
     document.getElementById("weekSummary").innerHTML=pv(doneWk)+" done"+(planWk>0?" · "+pv(planWk)+" planned":"")+" · "+summaryTail+legend+(displayWeek!==currentWeek?' <button class="btn" id="resetWeekBtn" style="padding:3px 8px;margin-left:8px;font-size:11px">This week</button>':'');
     var resetBtn=document.getElementById("resetWeekBtn");
     if(resetBtn){ resetBtn.addEventListener("click",function(){ selectedWorkoutWeek=null; render(); }); }
@@ -1720,7 +1735,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.33.0";
+    document.getElementById("versionLabel").textContent="v1.34.0";
   }
 
   // ---------- modes ----------
