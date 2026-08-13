@@ -624,11 +624,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.35.0",d:"2026-08-06",note:"Added more cardio keywords: HIIT, hike/hiking, tennis, badminton, pickleball, squash, padel. Same case-insensitive word-boundary matching as the original list — padel deliberately doesn't match 'paddle'/paddleboarding, a different sport that was never asked for."},
     {v:"1.34.0",d:"2026-08-06",note:"Fixed a cardio-day cell in the day-grid not visually matching the bar chart's blue: tinting just the inner chip meant a translucent blue sat on top of an already gold-tinted cell, alpha-blending into a muddy teal instead of the clean blue used everywhere else. A day where every session is cardio now recolours the whole cell (same recipe .on already used for gold, swapped to the cardio colour) — a mixed gym+cardio day still keeps the gold cell with just its own chip tinted. Also tightened the Gym/Cardio legend spacing, which was running together into one dense line — it's now its own '· ' separated segment matching the line's existing convention, with a non-breaking space between each label and its count so it can't visually collapse."},
     {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
     {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
     {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
-    {v:"1.30.0",d:"2026-08-01",note:"Weight chart hover on desktop now requires actually being near a point — real 2D distance to the dot within a small fixed radius, not just 'nearest point somewhere inside the plotted rectangle'. That earlier fix used half the gap to the neighbouring point as the cutoff, which for evenly-spaced daily data covers the ENTIRE width with no dead zone at all, so it wasn't actually any tighter. Touch still matches nearest-by-X with no distance limit, since gliding a finger near the line (not exactly on a point) is the reason that interaction exists."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -936,7 +936,8 @@
   // Case-insensitive, word-boundary-prefixed so one root covers every inflection (walk/walking,
   // run/running, cycle/cycling, etc.) without enumerating every form, and so "run" can't match
   // mid-word (e.g. "brunch" — \b requires a word-boundary immediately before the match).
-  var CARDIO_TITLE_RE=/\b(walk|run|cycl|bik|krav|bjj|jiu|grappl|wrestl)/i;
+  // "padel" deliberately excludes "paddle"/paddleboarding — different sport, never asked for.
+  var CARDIO_TITLE_RE=/\b(walk|run|cycl|bik|krav|bjj|jiu|grappl|wrestl|hiit|hik|tennis|badminton|pickl|squash|padel)/i;
   function isCardioWorkout(w){ return CARDIO_TITLE_RE.test(w.type||""); }
   // .test() short-circuits on the first matching keyword, so an event matching several (e.g.
   // "Wrestling & Grappling") is still only ever counted once here.
@@ -1384,7 +1385,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.34.0";
+    document.getElementById("versionLabel").textContent="v1.35.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1735,7 +1736,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.34.0";
+    document.getElementById("versionLabel").textContent="v1.35.0";
   }
 
   // ---------- modes ----------
