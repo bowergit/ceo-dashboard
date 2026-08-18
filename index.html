@@ -65,6 +65,11 @@
   .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
   .synced{font-size:11px;color:var(--faint)}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+  /* .reveal is added by JS (initScrollReveal), never present in the raw markup — so a browser
+     with JS disabled, or one predating IntersectionObserver, just sees every panel already at its
+     normal opacity/position rather than permanently stuck invisible. */
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s cubic-bezier(.16,1,.3,1)}
+  .reveal.in-view{opacity:1;transform:translateY(0)}
   .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.03em}
   .badge.sample{color:var(--gold);background:rgba(201,162,75,.12)}
   .banner{margin-bottom:14px}
@@ -195,14 +200,25 @@
   .cat-legend .dot.gym{background:var(--gold)}
   .cat-legend .dot.cardio{background:var(--cardio)}
   .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
-  .bar-current-highlight{position:absolute;bottom:0;right:0;width:calc((100% - 42px) / 8);height:100%;background:rgba(201,162,75,.06);border-radius:4px 4px 0 0;z-index:0;pointer-events:none}
-  /* overflow:hidden clips the two stacked segments to the bar's own rounded top corner, regardless
-     of which segment (gym or cardio) ends up tallest/topmost — simpler than conditionally rounding
-     whichever segment happens to be on top. display:flex + column-reverse stacks gym (first child)
-     at the bottom and cardio (second child) above it, each sized to its own share of the total. */
-  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;overflow:hidden;display:flex;flex-direction:column-reverse;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease;z-index:1}
+  /* Dashed reference line at the weekly target, spanning the whole chart, so every bar (not just
+     the current week) can be read against it directly — replaces a full-height tinted column that
+     used to sit behind whichever bar was "now": that had no relationship to the target at all, it
+     was just marking which column was current, but at a glance it read as "the line is at 7" purely
+     by coincidence of that week's own scale. */
+  .bars-target-line{position:absolute;left:0;right:0;border-top:1px dashed var(--gold-dim);z-index:2;pointer-events:none}
+  .bars-target-line .lbl{position:absolute;right:0;top:-13px;font-size:9px;color:var(--gold-dim);background:var(--panel);padding:0 3px;line-height:1.3}
+  /* overflow:hidden lives on .bar-stack, NOT .bar itself — .bar-tooltip and .bar-planned both
+     render ABOVE the bar's own box (bottom:100%) on purpose, and overflow:hidden on their
+     positioned ancestor clips them too, which is what silently cut the top off both. .bar-stack
+     is a separate absolutely-positioned layer that only wraps the two colour segments, so the
+     clip-to-rounded-corner trick no longer touches anything meant to render outside the box. */
+  .bar{flex:1;background:var(--panel-2);border-radius:4px 4px 0 0;position:relative;min-height:3px;cursor:pointer;transition:opacity .12s ease, outline-color .12s ease, background-color .12s ease, box-shadow .3s ease;z-index:1}
   .bar:hover{opacity:0.8}
   .bar.selected{outline:1px solid var(--gold);outline-offset:2px}
+  /* Reward: any week (current or historical) that hit the full target gets a green glow ring, so
+     it's visible at a glance which weeks were genuinely good weeks, not just the KPI number. */
+  .bar.target-hit{box-shadow:0 0 0 2px var(--ok),0 0 14px 2px rgba(63,185,80,.5)}
+  .bar-stack{position:absolute;inset:0;overflow:hidden;border-radius:4px 4px 0 0;display:flex;flex-direction:column-reverse}
   .bar-seg{width:100%;flex:none}
   .bar-seg.gym{background:var(--gold)}
   .bar-seg.cardio{background:var(--cardio)}
@@ -624,11 +640,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.36.0",d:"2026-08-07",note:"Fixed the week-bars chart's top getting cut off: overflow:hidden (added for the stacked gym/cardio segments) was clipping .bar-tooltip and .bar-planned too, since both intentionally render above the bar's own box — moved the clip onto a separate inner .bar-stack layer that only wraps the colour segments. Any week that hits target now gets a green glow ring, current or historical, so a genuinely good week is visible at a glance. Replaced the full-height tinted column that used to sit behind whichever bar was 'now' (which only ever meant 'this is the current column', not anything about the target, despite looking like it marked a value) with a dashed line across the whole chart at the actual target height. Weight chart: reverted mouse hover to X-only nearest-point matching — a previous fix required true 2D distance within a tight radius, which meant a normal horizontal sweep only ever caught a few points since Y varies a lot with real weight swings; also now shows the last ~2 months instead of ~1. Fixed 'avg £X/gig · +5% vs previous month' reading as if the average fee itself had moved — that percentage is total turnover this month vs last, now labelled 'total +5%' to say so. Added scroll-reveal fade/slide-in on every panel and income card, and the week bars now grow up from 0 on every render instead of just appearing — both skipped under prefers-reduced-motion."},
     {v:"1.35.0",d:"2026-08-06",note:"Added more cardio keywords: HIIT, hike/hiking, tennis, badminton, pickleball, squash, padel. Same case-insensitive word-boundary matching as the original list — padel deliberately doesn't match 'paddle'/paddleboarding, a different sport that was never asked for."},
     {v:"1.34.0",d:"2026-08-06",note:"Fixed a cardio-day cell in the day-grid not visually matching the bar chart's blue: tinting just the inner chip meant a translucent blue sat on top of an already gold-tinted cell, alpha-blending into a muddy teal instead of the clean blue used everywhere else. A day where every session is cardio now recolours the whole cell (same recipe .on already used for gold, swapped to the cardio colour) — a mixed gym+cardio day still keeps the gold cell with just its own chip tinted. Also tightened the Gym/Cardio legend spacing, which was running together into one dense line — it's now its own '· ' separated segment matching the line's existing convention, with a non-breaking space between each label and its count so it can't visually collapse."},
     {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
     {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
-    {v:"1.31.0",d:"2026-08-01",note:"Today's attention list: dropped Social (still fully visible on its own card and in the goal rails, just not one of the six top-line callouts) and added lessons booked this month in its place. Added an 8th KPI tile, Booked this month — gigs by deposit/booked date landing in the current calendar month, distinct from the existing Gigs tile which counts by event date and follows its own month arrows."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1087,7 +1103,7 @@
   // the plot area, and updates continuously while a finger (or mouse) drags across it — attached
   // once to the stable <svg id="weightChart"> element (see below), reading the latest
   // WEIGHT_CHART_STATE that render() refreshes each time the chart is rebuilt.
-  function updateWeightCrosshair(clientX,clientY,pointerType){
+  function updateWeightCrosshair(clientX,clientY){
     if(!WEIGHT_CHART_STATE) return;
     var svg=document.getElementById("weightChart"); if(!svg) return;
     var rect=svg.getBoundingClientRect(); if(!rect.width) return;
@@ -1104,19 +1120,14 @@
     if(svgX<st.left||svgX>st.left+st.w||svgY<st.top||svgY>st.top+st.h){ hideWeightCrosshair(); return; }
     var pts=WEIGHT_CHART_STATE.pts.filter(function(p){return p[1]!=null;});
     if(!pts.length) return;
-    // Mouse: true 2D distance to the dot itself (a fixed small radius — dot render radius is 3.4),
-    // so hovering over empty space, even inside the plotted rectangle, correctly shows nothing.
-    // Points ~10 units apart with a half-the-gap threshold (an earlier attempt at this) still
-    // covers the ENTIRE width with no real dead zone at all for evenly-spaced data — that's why
-    // it "still looked weird": it wasn't actually any tighter than matching nearest-with-no-limit.
-    // A fixed radius, and checking Y as well as X, is what makes it mean "hovering over the point".
-    // Touch keeps nearest-by-X-only with no distance limit: gliding a finger near the line, not
-    // exactly on a point, is the whole reason that interaction exists.
-    var isMouse=pointerType==="mouse";
-    function dist(p){ if(!isMouse) return Math.abs(p[0]-svgX); var dx=p[0]-svgX,dy=p[1]-svgY; return Math.sqrt(dx*dx+dy*dy); }
-    var nearest=pts[0], bestDist=dist(pts[0]);
-    pts.forEach(function(p){ var d=dist(p); if(d<bestDist){ bestDist=d; nearest=p; } });
-    if(isMouse && bestDist>4){ hideWeightCrosshair(); return; } // dot render radius is 3.4 — this is barely more forgiving than the dot itself, on purpose
+    // Nearest by X only, for both mouse and touch. A previous attempt required true 2D distance
+    // (X and Y) within a tight fixed radius for mouse, on the theory that "hovering the point"
+    // should mean actually being near the dot — but weight swings mean Y varies a lot along the
+    // line while the radius was tiny, so a normal horizontal sweep of the mouse only ever landed
+    // within range of a handful of points and left most of the line dead. X-only, bounded to the
+    // plotted rectangle (checked above), is what actually reads as "hovering over the chart".
+    var nearest=pts[0], bestDist=Math.abs(pts[0][0]-svgX);
+    pts.forEach(function(p){ var d=Math.abs(p[0]-svgX); if(d<bestDist){ bestDist=d; nearest=p; } });
     var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
     var tipRect=document.getElementById("weightCrosshairRect"), tipText=document.getElementById("weightCrosshairText");
     if(!line||!tipG||!tipRect||!tipText) return;
@@ -1138,6 +1149,35 @@
     var line=document.getElementById("weightCrosshairLine"), tipG=document.getElementById("weightCrosshairTip");
     if(line) line.classList.remove("show");
     if(tipG) tipG.classList.remove("show");
+  }
+  // Grows the week bars from 0 up to their real height on every rebuild (initial load, or
+  // clicking a different week) instead of them just appearing at full height. The target heights
+  // are already correct in each element's inline style from the innerHTML build above — this
+  // snaps them to 0 first (transition:none, forced reflow so that 0 state actually paints), then
+  // re-enables the transition and restores the real height on the next frame, which is what
+  // actually triggers the animation. Two rAFs rather than one: the browser needs a full paint at
+  // height:0 in between, or it can coalesce both style changes into a single frame and skip the
+  // animation entirely.
+  function growBarsIn(){
+    requestAnimationFrame(function(){
+      var bars=document.querySelectorAll("#weekBars .bar");
+      var snapshots=Array.prototype.map.call(bars,function(bar){
+        var segs=bar.querySelectorAll(".bar-seg");
+        var segTargets=Array.prototype.map.call(segs,function(s){return s.style.height;});
+        var targetH=bar.style.height;
+        bar.style.transition="none"; bar.style.height="0%";
+        segs.forEach(function(s){ s.style.transition="none"; s.style.height="0px"; });
+        return {bar:bar,segs:segs,targetH:targetH,segTargets:segTargets};
+      });
+      void document.getElementById("weekBars").offsetHeight; // force the 0-height state to actually paint before animating
+      requestAnimationFrame(function(){
+        snapshots.forEach(function(s){
+          s.bar.style.transition="height .5s cubic-bezier(.16,1,.3,1)";
+          s.bar.style.height=s.targetH;
+          s.segs.forEach(function(seg,i){ seg.style.transition="height .5s cubic-bezier(.16,1,.3,1)"; seg.style.height=s.segTargets[i]; });
+        });
+      });
+    });
   }
   function dayOfWeekIndex(d){ return d.getDay()+1; } // Sunday=1 .. Saturday=7 (Sunday is day one of the week)
   function socialPace(count, min, max, now){ // more social events is good; pace-aware the same way workouts are
@@ -1385,7 +1425,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.35.0";
+    document.getElementById("versionLabel").textContent="v1.36.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1451,7 +1491,10 @@
     var shBig=sh.slotsTotal?((sh.keptSlots||0)+" / "+sh.slotsTotal):(sh.score==null?"--":sh.score.toFixed(1)+" / 1");
     var kpis=[
       {id:"kpi-income",lab:"Turnover "+(incomeMagicDisplay.bounds.label),nav:"income",big:gigsUsable?gbp(selectedTurnover):"--",money:true,foot:gigsUsable?("magic "+pv(gbp(incomeMagicDisplay.total))+" + maths "+pv(gbp(incomeMathsDisplay.total))+srcTag("magic",GIGS_STATE)+srcTag("maths",HEALTH_STATE)):magicNote},
-      {id:"kpi-gigs",lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
+      // magicSelectedPct compares TOTAL turnover this month vs last, not the average fee per gig —
+      // it used to sit right next to "avg £X/gig" with nothing saying so, reading as if the average
+      // itself had moved. "total" makes it unambiguous which number actually changed.
+      {id:"kpi-gigs",lab:"Gigs "+magicSelected.bounds.label,nav:"magic",big:gigsUsable?String(magicSelected.count):"--",foot:gigsUsable?("avg "+pv(gbp(magicSelected.avg||0))+"/gig"+(magicSelectedPct?" · total "+pv(magicSelectedPct)+" vs previous month":"")+srcTag("magic",GIGS_STATE)):magicNote},
       // By deposit/booked date, not event date — always the real current month, so unlike the
       // Gigs tile above it deliberately has no month-nav (the underlying count doesn't move with
       // selectedMagicMonthOffset, and arrows that silently did nothing would be worse than none).
@@ -1548,9 +1591,16 @@
     var counts=weekSplits.map(function(s){ return s.all.length; });
     // Only the current week (last bar) can have anything still scheduled — the sync doesn't look
     // past this Saturday. Scale headroom includes it so a big planned week isn't drawn off the top.
+    // `good` is in the mix too: without it, a target line only ever appears once some week has
+    // actually reached it, which is backwards — it needs to be visible as a reference BEFORE that,
+    // so a string of below-target weeks can be seen against it, not just a target already hit.
     var BARS_H=64;
-    var mx=Math.max(4,Math.max.apply(null,counts),counts[7]+plannedWk);
-    document.getElementById("weekBars").innerHTML='<div class="bar-current-highlight"></div>'+counts.map(function(cc,idx){
+    var mx=Math.max(4,Math.max.apply(null,counts),counts[7]+plannedWk,good);
+    // Dashed line across the whole chart at the target's own height, so every bar can be read
+    // against it directly. Guarded by good<=mx (always true now mx accounts for good — kept as a
+    // defensive check in case that ever changes) so it never draws above the chart's own scale.
+    var targetLine=good<=mx?'<div class="bars-target-line" style="bottom:'+Math.min(BARS_H,(good/mx)*BARS_H).toFixed(1)+'px"><span class="lbl">target '+good+'</span></div>':'';
+    document.getElementById("weekBars").innerHTML=targetLine+counts.map(function(cc,idx){
       var h=Math.round(cc/mx*100),lbl=idx===7?"now":(idx%2===0?(7-idx)+"w":"");
       var wk=weeks[idx],d2=dateObj(wk);d2.setDate(d2.getDate()+6);
       var range=fmtD(wk)+" to "+fmtD(iso(d2));
@@ -1565,13 +1615,14 @@
       // BARS_H/mx scale as the bar's own height, cardio segment (top) makes up the rest — so the
       // two segments' combined height always equals the bar's height, whatever the split.
       var gymH=(gymCc*(BARS_H/mx)).toFixed(1), cardioH=(cardioCc*(BARS_H/mx)).toFixed(1);
-      var segs='<div class="bar-seg gym" style="height:'+gymH+'px"></div><div class="bar-seg cardio" style="height:'+cardioH+'px"></div>';
+      var segs='<div class="bar-stack"><div class="bar-seg gym" style="height:'+gymH+'px"></div><div class="bar-seg cardio" style="height:'+cardioH+'px"></div></div>';
       var ghost=plannedHere?'<div class="bar-planned" style="height:'+(plannedHere*(BARS_H/mx)).toFixed(1)+'px"></div>':'';
-      return '<div class="bar'+(wk===displayWeek?' selected':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%" title="'+esc(tooltip)+'">'+segs+ghost+'<div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
+      return '<div class="bar'+(wk===displayWeek?' selected':'')+(cc>=good?' target-hit':'')+'" data-week="'+wk+'" style="height:'+Math.max(3,h)+'%" title="'+esc(tooltip)+'">'+segs+ghost+'<div class="bar-tooltip">'+tooltip+'</div><span>'+lbl+'</span></div>';
     }).join("");
     document.querySelectorAll("#weekBars .bar").forEach(function(bar){
       bar.addEventListener("click",function(){ selectedWorkoutWeek=bar.getAttribute("data-week"); render(); });
     });
+    growBarsIn();
 
     // weight
     document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
@@ -1584,7 +1635,7 @@
       var gpd=weightGoalpost(lw,m.weight_baseline||90);
       dEl.innerHTML='<span style="color:'+gpd.col+'">'+pv((gpd.diff>0?"+":"")+gpd.diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
     } else dEl.innerHTML='<span class="faint">no weight logged</span>';
-    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-29); // last 29, plus today
+    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-60); // last ~2 months, plus today
     // Add today if not already there
     var today=todayISO();
     if(sw.length===0 || sw[sw.length-1].date!==today){
@@ -1736,7 +1787,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.35.0";
+    document.getElementById("versionLabel").textContent="v1.36.0";
   }
 
   // ---------- modes ----------
@@ -1844,9 +1895,9 @@
   if(weightChartEl){
     weightChartEl.addEventListener("pointerdown",function(e){
       if(e.pointerType!=="mouse"&&weightChartEl.setPointerCapture) weightChartEl.setPointerCapture(e.pointerId);
-      updateWeightCrosshair(e.clientX,e.clientY,e.pointerType);
+      updateWeightCrosshair(e.clientX,e.clientY);
     });
-    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX,e.clientY,e.pointerType); });
+    weightChartEl.addEventListener("pointermove",function(e){ updateWeightCrosshair(e.clientX,e.clientY); });
     weightChartEl.addEventListener("pointerleave",function(e){ if(e.pointerType==="mouse") hideWeightCrosshair(); });
   }
 
@@ -1995,9 +2046,33 @@
   document.getElementById("logoutBtn").addEventListener("click",async function(){ var client=await getClient(); if(client){ await client.auth.signOut(); } loadLive(); });
 
   // init: honour saved mode, saved privacy, and handle a magic-link redirect (which lands in Live)
+  // Fades/slides each panel and income card in as it scrolls into view, once, the first time —
+  // unobserve() after revealing so it never re-triggers on scrolling back up and down again.
+  // Skipped entirely (not just made instant) under prefers-reduced-motion or if the browser has
+  // no IntersectionObserver, rather than adding the class and leaving content stuck invisible.
+  function initScrollReveal(){
+    if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if(!("IntersectionObserver" in window)) return;
+    var targets=document.querySelectorAll(".panel, .income-card");
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){ entry.target.classList.add("in-view"); io.unobserve(entry.target); }
+      });
+    },{threshold:0.12,rootMargin:"0px 0px -40px 0px"});
+    targets.forEach(function(el){ el.classList.add("reveal"); io.observe(el); });
+    // Safety net: .reveal starts every panel at opacity:0, and the ONLY thing that ever removes
+    // that is this observer firing. If it doesn't — a browser quirk, a panel that never becomes
+    // "intersecting" for some edge-case layout reason — the content is stuck permanently invisible,
+    // which is a far worse failure than just skipping the animation. Force everything visible after
+    // a few seconds regardless, so a broken observer degrades to "no animation", never "blank page".
+    setTimeout(function(){
+      document.querySelectorAll(".reveal:not(.in-view)").forEach(function(el){ el.classList.add("in-view"); });
+    },2500);
+  }
   (async function init(){
     renderChangelog();
     initAnimatedDetails();
+    initScrollReveal();
     var savedPrivacy="0"; try{ savedPrivacy=localStorage.getItem("os_ceo_privacy")||"0"; }catch(e){}
     setPrivacy(savedPrivacy==="1");
     var saved="sample"; try{ saved=localStorage.getItem("os_ceo_mode")||"sample"; }catch(e){}
