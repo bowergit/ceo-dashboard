@@ -640,11 +640,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.37.0",d:"2026-08-07",note:"Weight chart bug: the 2-month window was slice(-60) — the last 60 LOGGED readings, not the last 60 calendar days. Any gap in the data (a missed weigh-in, a stretch before logging started) silently pushed the visible start date further back than 2 months. Now filtered by actual date. Also widened the plotted graph itself (not just the SVG box, which was already full width) by trimming the left/right margins reserved for axis labels — dropped the redundant 'kg' off the baseline label (the panel header right above already says 'baseline 90 kg') to free up the space, plot is about 9% wider."},
     {v:"1.36.0",d:"2026-08-07",note:"Fixed the week-bars chart's top getting cut off: overflow:hidden (added for the stacked gym/cardio segments) was clipping .bar-tooltip and .bar-planned too, since both intentionally render above the bar's own box — moved the clip onto a separate inner .bar-stack layer that only wraps the colour segments. Any week that hits target now gets a green glow ring, current or historical, so a genuinely good week is visible at a glance. Replaced the full-height tinted column that used to sit behind whichever bar was 'now' (which only ever meant 'this is the current column', not anything about the target, despite looking like it marked a value) with a dashed line across the whole chart at the actual target height. Weight chart: reverted mouse hover to X-only nearest-point matching — a previous fix required true 2D distance within a tight radius, which meant a normal horizontal sweep only ever caught a few points since Y varies a lot with real weight swings; also now shows the last ~2 months instead of ~1. Fixed 'avg £X/gig · +5% vs previous month' reading as if the average fee itself had moved — that percentage is total turnover this month vs last, now labelled 'total +5%' to say so. Added scroll-reveal fade/slide-in on every panel and income card, and the week bars now grow up from 0 on every render instead of just appearing — both skipped under prefers-reduced-motion."},
     {v:"1.35.0",d:"2026-08-06",note:"Added more cardio keywords: HIIT, hike/hiking, tennis, badminton, pickleball, squash, padel. Same case-insensitive word-boundary matching as the original list — padel deliberately doesn't match 'paddle'/paddleboarding, a different sport that was never asked for."},
     {v:"1.34.0",d:"2026-08-06",note:"Fixed a cardio-day cell in the day-grid not visually matching the bar chart's blue: tinting just the inner chip meant a translucent blue sat on top of an already gold-tinted cell, alpha-blending into a muddy teal instead of the clean blue used everywhere else. A day where every session is cardio now recolours the whole cell (same recipe .on already used for gold, swapped to the cardio colour) — a mixed gym+cardio day still keeps the gold cell with just its own chip tinted. Also tightened the Gym/Cardio legend spacing, which was running together into one dense line — it's now its own '· ' separated segment matching the line's existing convention, with a non-breaking space between each label and its count so it can't visually collapse."},
     {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
-    {v:"1.32.0",d:"2026-08-06",note:"Security fix: Live mode's only gate was 'is there a valid Supabase session', not 'is this session Daniel's' — since this project is shared with other apps (the tutoring CRM), any real account on any of them could pass it. Replaced with a hard allowlist of exactly two Supabase user ids; anything else is signed out immediately rather than left sitting active. Matching RLS policies tightened on metrics/workouts/weights/relationship_events/timed_gigs to the same two ids (workouts previously had RLS off entirely; weights had a wide-open anon-read policy reachable with just the public key, no login at all). See ARCHITECTURE.md for the full audit."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1425,7 +1425,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.36.0";
+    document.getElementById("versionLabel").textContent="v1.37.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1635,7 +1635,12 @@
       var gpd=weightGoalpost(lw,m.weight_baseline||90);
       dEl.innerHTML='<span style="color:'+gpd.col+'">'+pv((gpd.diff>0?"+":"")+gpd.diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
     } else dEl.innerHTML='<span class="faint">no weight logged</span>';
-    var sw=S.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}).slice(-60); // last ~2 months, plus today
+    // Bounded by calendar date, not row count — slice(-60) took the last 60 LOGGED readings,
+    // which silently reaches further back than 60 days the moment there's any gap in the data
+    // (a missed weigh-in, a stretch before logging started), so "last 2 months" quietly became
+    // "last 2 months of days that happen to have a reading", sometimes months further back.
+    var weightWindowStart=iso(new Date(new Date().setDate(new Date().getDate()-60)));
+    var sw=S.weights.filter(function(w){return w.date>=weightWindowStart;}).sort(function(a,b){return a.date<b.date?-1:1;}); // last 60 calendar days, plus today
     // Add today if not already there
     var today=todayISO();
     if(sw.length===0 || sw[sw.length-1].date!==today){
@@ -1645,7 +1650,10 @@
     if(sw.length){
       var valsForCalc=sw.map(function(x){return x.kg;}).filter(function(v){return v!=null;}),baseLine=m.weight_baseline||90,limit=baseLine+1;
       var mn=Math.min.apply(null,valsForCalc.concat([baseLine,limit]))-0.5,mxx=Math.max.apply(null,valsForCalc.concat([baseLine,limit]))+0.5,rng=Math.max(1,mxx-mn);
-      var left=24,right=10,top=10,bottom=22,w=320-left-right,h=118-top-bottom;
+      // left was 24 (to fit a "90kg" label), right was 10 — reclaimed most of that by dropping the
+      // redundant "kg" (the panel header right above already says "baseline 90 kg") down to just
+      // "90", and trimming right since nothing needs that much room there. Plot is ~9% wider.
+      var left=14,right=5,top=10,bottom=22,w=320-left-right,h=118-top-bottom;
       function xAt(i){ return sw.length===1? left+w/2 : left+(i/(sw.length-1))*w; }
       function yAt(v){ return top+(mxx-v)/rng*h; }
       var pts=sw.map(function(x,i){return [xAt(i),x.kg!=null?yAt(x.kg):null,x];});
@@ -1679,7 +1687,7 @@
         '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
         '<g>'+dotsSvg+'</g>'+
-        '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'kg</text>'+
+        '<text class="pv" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'</text>'+
         '<text class="pv" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
         '<text x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
         '<text x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>'+
@@ -1787,7 +1795,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.36.0";
+    document.getElementById("versionLabel").textContent="v1.37.0";
   }
 
   // ---------- modes ----------
