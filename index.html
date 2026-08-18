@@ -540,7 +540,14 @@
         <div class="lab muted small">Weight <span class="faint" id="weightBaselineLabel">· baseline 90 kg</span></div>
         <div class="weight-now" id="weightNow">--</div>
         <div class="small" id="weightDelta" style="margin-top:2px"></div>
-        <svg class="weight-chart" id="weightChart" viewBox="0 0 320 118" role="img" aria-label="Weight trend"></svg>
+        <!-- preserveAspectRatio="none": the viewBox (320x118, ~2.7:1) doesn't match the actual
+             rendered box (100% of a wide panel x a fixed 118px, often 6:1+) — the SVG default
+             (xMidYMid meet) preserves the viewBox's own aspect ratio and LETTERBOXES the rest,
+             centering the real content in a much narrower column with big blank gutters either
+             side. none stretches X and Y independently to fill the box exactly, which is also
+             what the crosshair math already assumed (a simple vbWidth/rect.width scale, no
+             letterbox offset to account for) — that math was quietly wrong until this was set. -->
+        <svg class="weight-chart" id="weightChart" viewBox="0 0 320 118" preserveAspectRatio="none" role="img" aria-label="Weight trend"></svg>
       </div>
     </div>
 
@@ -640,11 +647,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.38.0",d:"2026-08-07",note:"Fixed the real cause of the weight chart's wasted space: the SVG's viewBox aspect ratio (320x118, ~2.7:1) never matched its actual rendered box (100% of a wide panel x a fixed 118px, often 6:1+), so the browser's default letterboxing centred the real content in a narrow column with big blank gutters either side — the margin trim last time didn't touch this. Set preserveAspectRatio=\"none\" so the plot stretches to fill the box exactly; verified the line now spans edge to edge. That non-uniform stretch would have turned the round dots into visible ellipses, so each one now carries a counter-scale (computed from the panel's actual measured width, not assumed) to cancel it back out to circular."},
     {v:"1.37.0",d:"2026-08-07",note:"Weight chart bug: the 2-month window was slice(-60) — the last 60 LOGGED readings, not the last 60 calendar days. Any gap in the data (a missed weigh-in, a stretch before logging started) silently pushed the visible start date further back than 2 months. Now filtered by actual date. Also widened the plotted graph itself (not just the SVG box, which was already full width) by trimming the left/right margins reserved for axis labels — dropped the redundant 'kg' off the baseline label (the panel header right above already says 'baseline 90 kg') to free up the space, plot is about 9% wider."},
     {v:"1.36.0",d:"2026-08-07",note:"Fixed the week-bars chart's top getting cut off: overflow:hidden (added for the stacked gym/cardio segments) was clipping .bar-tooltip and .bar-planned too, since both intentionally render above the bar's own box — moved the clip onto a separate inner .bar-stack layer that only wraps the colour segments. Any week that hits target now gets a green glow ring, current or historical, so a genuinely good week is visible at a glance. Replaced the full-height tinted column that used to sit behind whichever bar was 'now' (which only ever meant 'this is the current column', not anything about the target, despite looking like it marked a value) with a dashed line across the whole chart at the actual target height. Weight chart: reverted mouse hover to X-only nearest-point matching — a previous fix required true 2D distance within a tight radius, which meant a normal horizontal sweep only ever caught a few points since Y varies a lot with real weight swings; also now shows the last ~2 months instead of ~1. Fixed 'avg £X/gig · +5% vs previous month' reading as if the average fee itself had moved — that percentage is total turnover this month vs last, now labelled 'total +5%' to say so. Added scroll-reveal fade/slide-in on every panel and income card, and the week bars now grow up from 0 on every render instead of just appearing — both skipped under prefers-reduced-motion."},
     {v:"1.35.0",d:"2026-08-06",note:"Added more cardio keywords: HIIT, hike/hiking, tennis, badminton, pickleball, squash, padel. Same case-insensitive word-boundary matching as the original list — padel deliberately doesn't match 'paddle'/paddleboarding, a different sport that was never asked for."},
     {v:"1.34.0",d:"2026-08-06",note:"Fixed a cardio-day cell in the day-grid not visually matching the bar chart's blue: tinting just the inner chip meant a translucent blue sat on top of an already gold-tinted cell, alpha-blending into a muddy teal instead of the clean blue used everywhere else. A day where every session is cardio now recolours the whole cell (same recipe .on already used for gold, swapped to the cardio colour) — a mixed gym+cardio day still keeps the gold cell with just its own chip tinted. Also tightened the Gym/Cardio legend spacing, which was running together into one dense line — it's now its own '· ' separated segment matching the line's existing convention, with a non-breaking space between each label and its count so it can't visually collapse."},
-    {v:"1.33.0",d:"2026-08-06",note:"Weekly exercise target is now 6 sessions split 3 gym + 3 cardio, not a single undifferentiated count. Cardio is keyword-matched off the Sport/Exercise calendar title (walk/run/cycle/bike/Krav Maga/BJJ/grappling/wrestling, case-insensitive); everything else that already counted as a workout is gym (CST/security-volunteer shifts stay excluded upstream, unchanged). The KPI tile, day-grid chips and the 8-week history bars all colour gym gold and cardio blue so the split is visible per-session, not just in the total — the history bars are now stacked (gym segment + cardio segment) instead of one flat colour. The training attention item now demotes a lopsided week (e.g. 6 cardio, 0 gym) to a watch instead of reading as an unqualified target-hit. Also fixed the discipline score's workout sub-score, which used hardcoded c===2/c===1 tiers tuned for a target of 3 — those went silently wrong the moment the target changed (4 or 5 real sessions matched neither and scored 0); replaced with tiers proportional to the actual target."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1425,7 +1432,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.37.0";
+    document.getElementById("versionLabel").textContent="v1.38.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1700,6 +1707,20 @@
       // Fresh data + geometry for the pointer handler (attached once, outside render — see
       // initWeightChartInteraction) to read on every pointerdown/pointermove.
       WEIGHT_CHART_STATE={pts:pts,left:left,top:top,w:w,h:h};
+      // preserveAspectRatio="none" (so the plot fills the box instead of letterboxing) stretches
+      // X and Y independently — height is always exactly 118px (fixed in CSS, matching the
+      // viewBox height, so Y-scale is always 1), but X-scale varies with the panel's actual
+      // rendered width, so a plain <circle> renders as a visibly squashed-wide ellipse, not a
+      // dot. Counter-scale each one in X only, by however much the ambient stretch actually was
+      // (measured post-layout, not assumed), around its own centre, so it reads as round again.
+      var chartRect=chart.getBoundingClientRect();
+      if(chartRect.width){
+        var circleFix=(320/chartRect.width).toFixed(4);
+        chart.querySelectorAll("circle.point").forEach(function(c){
+          var cx=c.getAttribute("cx"), cy=c.getAttribute("cy");
+          c.setAttribute("transform","translate("+cx+" "+cy+") scale("+circleFix+" 1) translate("+(-cx)+" "+(-cy)+")");
+        });
+      }
     } else {
       chart.innerHTML="";
       WEIGHT_CHART_STATE=null;
@@ -1795,7 +1816,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.37.0";
+    document.getElementById("versionLabel").textContent="v1.38.0";
   }
 
   // ---------- modes ----------
