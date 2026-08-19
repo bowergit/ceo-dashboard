@@ -169,41 +169,47 @@
   .sect-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 12px}
   .sect-title h2{font-size:15px;letter-spacing:.01em}
   .weekdots{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin:8px 0 2px}
-  /* One consistent card chrome for every cell (done, scheduled, rest) — category and status used
-     to also each recolour the whole cell and border-style (solid/dashed), stacked with a separately
-     coloured/bordered chip inside, which was a lot of simultaneous encoding to read at a glance.
-     Now: category is ONE small dot's colour, status (done vs scheduled) is filled-vs-hollow on that
-     same dot plus text brightness — nothing else about the cell changes. */
-  .wd{min-width:0;min-height:58px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;color:var(--faint);padding:8px 4px 7px;gap:6px}
+  /* Coloured-box treatment restored per feedback — a dot next to the name took up room the name
+     already barely fit in, at this cell size. Category is the box's own colour/border; done vs
+     scheduled is solid vs dashed. Text stays centred either way. */
+  .wd{min-width:0;min-height:58px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;color:var(--faint);padding:7px 4px 6px}
   .wd .day{font-size:10px;font-weight:700;line-height:1.15}
-  .wd .types{display:flex;flex-direction:column;gap:5px;align-items:center;width:100%}
-  .wd .entry{display:flex;align-items:flex-start;justify-content:center;gap:5px;max-width:100%}
-  .wd .entry .dot{flex:none;width:6px;height:6px;margin-top:3px;border-radius:50%;background:var(--gold)}
-  .wd .entry.cardio .dot{background:var(--cardio)}
-  .wd .entry .type{font-size:10px;color:var(--text);font-weight:600;line-height:1.3;text-align:center;word-break:normal}
-  .wd .type.rest{font-size:10px;color:var(--faint);font-weight:500}
-  /* Scheduled = on the calendar but hasn't happened yet. Same layout as done, deliberately
-     quieter rather than a different visual language — hollow dot instead of filled, muted text
-     instead of bright. "Not yet happened" already reads as reduced-emphasis everywhere else in
-     this dashboard (a not-yet-reached weight reading, the bar chart's still-planned ghost), so
-     this matches that instead of introducing its own dashed-border convention. */
-  .wd.scheduled .entry .dot{background:none;border:1.3px solid var(--gold-dim)}
-  .wd.scheduled .entry.cardio .dot{border-color:var(--cardio-dim)}
-  .wd.scheduled .entry .type{color:var(--muted);font-weight:500}
+  .wd .types{display:flex;flex-direction:column;gap:4px;align-items:center;margin-top:5px;width:100%}
+  /* Each workout gets its own boxed chip so a wrapped two-line title reads as one entry, not two —
+     without the box, a long name spilling onto a second line looked identical to a second workout. */
+  .wd .type{font-size:9px;color:var(--muted);line-height:1.25;max-width:100%;overflow:visible;text-align:center;white-space:normal;word-break:normal;width:100%;background:rgba(255,255,255,.05);border-radius:4px;padding:2px 4px}
+  .wd.on{background:rgba(201,162,75,.12);border-color:var(--gold-dim);color:var(--gold)}
+  .wd.on .type{color:var(--text);font-weight:700;background:rgba(0,0,0,.16)}
+  /* A day where every logged session is cardio recolours the whole cell to match the bar chart's
+     blue. A mixed day (one gym, one cardio) can't commit the cell to a single colour, so it stays
+     gold and tints just its own chip instead. */
+  .wd.on.cardio-day{background:rgba(79,163,209,.14);border-color:var(--cardio-dim);color:var(--cardio)}
+  .wd.on.cardio-day .type{background:rgba(79,163,209,.3)}
+  .wd.on .type.cardio{background:rgba(79,163,209,.38)}
+  .wd.scheduled.cardio-day{border-color:var(--cardio-dim);color:var(--cardio)}
+  .wd.scheduled .type.cardio{color:var(--cardio);border-color:rgba(79,163,209,.45)}
+  /* Scheduled = on the calendar but hasn't happened yet, so it's deliberately hollow/dashed
+     rather than the solid gold fill .on uses for a done workout. */
+  .wd.scheduled{background:transparent;border:1px dashed var(--gold-dim);color:var(--muted)}
+  .wd.scheduled .type{color:var(--gold-dim);font-weight:600;background:transparent;border:1px dashed rgba(201,162,75,.4)}
   .wd.selected{box-shadow:0 0 0 1px var(--gold) inset}
   .cat-legend{display:flex;gap:16px;margin-top:6px;font-size:11px;color:var(--muted)}
   .cat-legend-item{display:inline-flex;align-items:center;gap:6px}
   .cat-legend .dot{display:inline-block;width:6px;height:6px;border-radius:50%}
   .cat-legend .dot.gym{background:var(--gold)}
   .cat-legend .dot.cardio{background:var(--cardio)}
-  .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;position:relative}
+  /* margin-bottom reserves room for the week labels ("7w"/"now") sitting just below each bar via
+     position:absolute — they're out of normal flow, so without this the panel's own bottom edge
+     would crowd them. Used to come for free from the "Last 8 weeks." caption's own margin-top;
+     moved here so removing that caption doesn't also remove the spacing it was quietly providing. */
+  .bars{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:12px;margin-bottom:20px;position:relative}
   /* Thin solid reference line at the weekly target, spanning the whole chart, so every bar (not
      just the current week) can be read against it directly — replaces a full-height tinted column
      that used to sit behind whichever bar was "now": that had no relationship to the target at
      all, it was just marking which column was current, but at a glance it read as "the line is at
      7" purely by coincidence of that week's own scale. Solid, not dashed — a dashed line reads as
      a second "planned/not-real" element next to the current week's own dashed ghost overlay. */
-  .bars-target-line{position:absolute;left:0;right:0;border-top:1px solid rgba(143,114,51,.55);z-index:2;pointer-events:none}
+  .bars-target-line{position:absolute;left:0;right:0;border-top:1px solid rgba(143,114,51,.55);z-index:0;pointer-events:none}
   .bars-target-line .lbl{position:absolute;right:0;top:-13px;font-size:9px;color:var(--faint);background:var(--panel);padding:0 3px;line-height:1.3}
   /* overflow:hidden lives on .bar-stack, NOT .bar itself — .bar-tooltip and .bar-planned both
      render ABOVE the bar's own box (bottom:100%) on purpose, and overflow:hidden on their
@@ -538,7 +544,6 @@
         <div class="weekdots" id="weekDots"></div>
         <div class="small muted" id="weekSummary" style="margin-top:8px"></div>
         <div class="bars" id="weekBars"></div>
-        <div class="small faint" style="margin-top:24px">Last 8 weeks.</div>
       </div>
       <div class="panel flash-target" id="weightPanel">
         <div class="lab muted small">Weight <span class="faint" id="weightBaselineLabel">· baseline 90 kg</span></div>
@@ -651,11 +656,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.41.0",d:"2026-08-07",note:"Reverted the day-grid cells back to the coloured-box treatment (category = the box's own colour, done vs scheduled = solid vs dashed border) per feedback — the dot-based version added an element next to text that already barely fit the cell. Text stays centred either way. Removed the 'Last 8 weeks.' caption under the bar chart. Target line now sits behind the bars instead of drawn on top of them, so it only shows through the gaps rather than cutting across the coloured fills."},
     {v:"1.40.0",d:"2026-08-07",note:"Cleaned up the Workouts card, which had accumulated a lot of simultaneous visual language — border colour, border style (solid/dashed), fill and a separately-coloured chip all changing at once to encode category and status. Day cells now use one encoding per idea: category is a small dot's colour (gold/blue), done-vs-scheduled is filled-vs-hollow on that dot plus text brightness, nothing else about the cell changes, and no dashed borders anywhere. Gym/Cardio counts moved to their own quiet row instead of a dense line of bullet separators. Bar chart: target line is now a thin solid reference instead of a bold dashed one competing with the current week's own dashed 'still planned' overlay (also lightened); the target-hit reward is a crisp thin ring instead of a blurred glow."},
     {v:"1.39.0",d:"2026-08-07",note:"Fixed the weight chart's axis/date text rendering flattened — the preserveAspectRatio fix corrected the dots but missed that text needs the same counter-scale, including the hover tooltip. Goal rails (Income/Training/Weight/Social/Aimee): each one now jumps to its source section on click, same pattern as the attention cards, and their fill bars grow in from 0 instead of just appearing. Scroll-reveal fade/slide-in extended to the goal rails and the KPI row, so more of the dashboard animates in as you scroll, not just the panels."},
     {v:"1.38.0",d:"2026-08-07",note:"Fixed the real cause of the weight chart's wasted space: the SVG's viewBox aspect ratio (320x118, ~2.7:1) never matched its actual rendered box (100% of a wide panel x a fixed 118px, often 6:1+), so the browser's default letterboxing centred the real content in a narrow column with big blank gutters either side — the margin trim last time didn't touch this. Set preserveAspectRatio=\"none\" so the plot stretches to fill the box exactly; verified the line now spans edge to edge. That non-uniform stretch would have turned the round dots into visible ellipses, so each one now carries a counter-scale (computed from the panel's actual measured width, not assumed) to cancel it back out to circular."},
     {v:"1.37.0",d:"2026-08-07",note:"Weight chart bug: the 2-month window was slice(-60) — the last 60 LOGGED readings, not the last 60 calendar days. Any gap in the data (a missed weigh-in, a stretch before logging started) silently pushed the visible start date further back than 2 months. Now filtered by actual date. Also widened the plotted graph itself (not just the SVG box, which was already full width) by trimming the left/right margins reserved for axis labels — dropped the redundant 'kg' off the baseline label (the panel header right above already says 'baseline 90 kg') to free up the space, plot is about 9% wider."},
-    {v:"1.36.0",d:"2026-08-07",note:"Fixed the week-bars chart's top getting cut off: overflow:hidden (added for the stacked gym/cardio segments) was clipping .bar-tooltip and .bar-planned too, since both intentionally render above the bar's own box — moved the clip onto a separate inner .bar-stack layer that only wraps the colour segments. Any week that hits target now gets a green glow ring, current or historical, so a genuinely good week is visible at a glance. Replaced the full-height tinted column that used to sit behind whichever bar was 'now' (which only ever meant 'this is the current column', not anything about the target, despite looking like it marked a value) with a dashed line across the whole chart at the actual target height. Weight chart: reverted mouse hover to X-only nearest-point matching — a previous fix required true 2D distance within a tight radius, which meant a normal horizontal sweep only ever caught a few points since Y varies a lot with real weight swings; also now shows the last ~2 months instead of ~1. Fixed 'avg £X/gig · +5% vs previous month' reading as if the average fee itself had moved — that percentage is total turnover this month vs last, now labelled 'total +5%' to say so. Added scroll-reveal fade/slide-in on every panel and income card, and the week bars now grow up from 0 on every render instead of just appearing — both skipped under prefers-reduced-motion."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1478,7 +1483,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.40.0";
+    document.getElementById("versionLabel").textContent="v1.41.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1604,21 +1609,21 @@
     }
     var DAYS=["S","M","T","W","T","F","S"],html="";
     for(var i=0;i<7;i++){
-      var on=byDay[i], sched=byDaySched[i], hasEntries=!!(on||sched), entries=on||sched||[];
+      var on=byDay[i], sched=byDaySched[i], entries=on||sched||[{type:"Rest",cardio:false}];
       // .selected used to be applied to every day cell whenever viewing a past week, not just
       // the ones with a workout on them — every day got a gold ring regardless of .on, which
       // read as "these days are special" when they weren't. .on (gold fill) already carries
       // that meaning; the section title + "This week" button already say you're viewing history.
       var cls=on?" on":sched?" scheduled":"";
-      var titleList=entries.map(function(e){return e.type;});
+      // Whole cell goes cardio-blue only when EVERY session that day is cardio — a mixed day (one
+      // gym, one cardio) can't commit the cell to a single colour, so it stays gold and leans on
+      // the per-chip tint instead.
+      if((on||sched)&&entries.length&&entries.every(function(e){return e.cardio;})) cls+=" cardio-day";
+      var titleList=(on||sched||[]).map(function(e){return e.type;});
       var title=on?titleList.join(", "):sched?titleList.join(", ")+" — planned, not done yet":"No workout logged";
       // esc() like every other data-driven bit of markup here — these are raw Google Calendar
       // titles, so a quote or angle bracket in an event name broke the tile until now.
-      // Category is a small dot's colour, not the whole chip — one encoding, not several stacked.
-      var body=hasEntries
-        ? entries.map(function(e){return '<span class="entry'+(e.cardio?" cardio":"")+'"><span class="dot"></span><span class="type">'+esc(e.type)+'</span></span>';}).join("")
-        : '<span class="type rest">Rest</span>';
-      html+='<div class="wd'+cls+'" title="'+esc(title)+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+body+'</span></div>';
+      html+='<div class="wd'+cls+'" title="'+esc(title)+'"><span class="day">'+DAYS[i]+'</span><span class="types">'+entries.map(function(e){return '<span class="type'+(e.cardio?" cardio":"")+'">'+esc(e.type)+'</span>';}).join("")+'</span></div>';
     }
     document.getElementById("weekDots").innerHTML=html;
     var doneWk=displayWorkouts.length, planWk=displayWeek===currentWeek?scheduledWorkoutsInWeek(displayWeek).length:0;
@@ -1868,7 +1873,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.40.0";
+    document.getElementById("versionLabel").textContent="v1.41.0";
   }
 
   // ---------- modes ----------
