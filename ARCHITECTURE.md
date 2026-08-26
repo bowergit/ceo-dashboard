@@ -175,6 +175,17 @@ reading this repo cold can see what's actually running without opening the Apps 
 | `syncRelationshipEventsToSupabase()` | "Social" (`family095…@group.calendar.google.com`) + "Aimee" (`c3b2f36d…@group.calendar.google.com`) calendars | `relationship_events` table (wipe + reinsert) | called by `runAllSyncsNow()` | service_role |
 | `syncTimedGigsToSupabase()` | "Booked Gigs" Google Calendar (`9a7292c0…@group.calendar.google.com`, itself synced from 17hats) | `timed_gigs` table (wipe + reinsert) | called by `runAllSyncsNow()` | service_role |
 
+`syncTimedGigs` windows from the **start of the current calendar month** (not "now" — fixed
+2026-08-08) through `HORIZON_DAYS` (180) forward. Because this table is wiped and fully rebuilt on
+every sync, a window starting at "now" meant a gig permanently vanished from it the instant its own
+date passed — including a gig earlier the same month that broke a Shabbat/Yom Tov slot, which the
+monthly Shabbat audit (`loadShabbatAudit()` in `index.html`) still needs to see for the rest of that
+month. The audit was reporting the correct violation count right up until the gig's date passed,
+then silently dropping it. **Still a real limitation, not fully fixed**: once the calendar rolls
+into a new month, the *next* sync's window no longer covers the prior month at all, so navigating
+the Shabbat panel's month-nav back to a month that's already ended will show incomplete or empty
+data for it — this only guarantees the *current* month stays accurate all the way through.
+
 The daily Apps Script trigger should call **`runAllSyncsNow()`** only. To install or repair that
 trigger, select **`setupDailyRunAllTrigger()`** in the Apps Script function dropdown and click Run
 once. To force a refresh right now, select **`runAllSyncsNow()`** and click Run. That function runs
