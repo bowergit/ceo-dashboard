@@ -254,9 +254,15 @@ var Sync = {
     Logger.log("=== syncTimedGigsToSupabase starting ===");
 
     var now = new Date();
+    // Start of the CURRENT month, not "now" — this table gets wiped and fully rebuilt every sync
+    // (see wipeTable below), so a window starting at "now" meant a gig permanently vanished from
+    // it the instant its own date passed, even a gig earlier this same month that broke a
+    // Shabbat/Yom Tov slot the monthly audit still needs to show for the rest of the month.
+    // Forward horizon is unchanged.
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     var horizon = Sync.addDays(now, CONFIG.TIMED_GIGS.HORIZON_DAYS);
     var calendar = Sync.getCalendarOrThrow(CONFIG.CALENDARS.BOOKED_GIGS, "Booked Gigs");
-    var events = calendar.getEvents(now, horizon);
+    var events = calendar.getEvents(monthStart, horizon);
     var rows = [];
 
     Logger.log("Booked Gigs calendar: " + events.length + " event(s) before all-day filter");

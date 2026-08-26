@@ -656,11 +656,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.42.0",d:"2026-08-08",note:"Fixed two real data bugs. Maths: tutoring_students.active was fetched but never actually used, so an archived/test student's lessons (e.g. a '(TEST)' dummy row) stayed in the Maths totals forever — now filtered out. Shabbat audit: the underlying Apps Script sync windowed timed_gigs from 'now' forward and fully wipes the table on every run, so a gig permanently vanished the instant its own date passed — including one earlier the same month that broke a Shabbat/Yom Tov slot, which the monthly audit still needs for the rest of that month. Widened to sync from the start of the current month. Requires re-pasting scripts/apps-script-calendar-sync.gs — see ARCHITECTURE.md for the full note, including a remaining limitation around browsing to already-ended months."},
     {v:"1.41.0",d:"2026-08-07",note:"Reverted the day-grid cells back to the coloured-box treatment (category = the box's own colour, done vs scheduled = solid vs dashed border) per feedback — the dot-based version added an element next to text that already barely fit the cell. Text stays centred either way. Removed the 'Last 8 weeks.' caption under the bar chart. Target line now sits behind the bars instead of drawn on top of them, so it only shows through the gaps rather than cutting across the coloured fills."},
     {v:"1.40.0",d:"2026-08-07",note:"Cleaned up the Workouts card, which had accumulated a lot of simultaneous visual language — border colour, border style (solid/dashed), fill and a separately-coloured chip all changing at once to encode category and status. Day cells now use one encoding per idea: category is a small dot's colour (gold/blue), done-vs-scheduled is filled-vs-hollow on that dot plus text brightness, nothing else about the cell changes, and no dashed borders anywhere. Gym/Cardio counts moved to their own quiet row instead of a dense line of bullet separators. Bar chart: target line is now a thin solid reference instead of a bold dashed one competing with the current week's own dashed 'still planned' overlay (also lightened); the target-hit reward is a crisp thin ring instead of a blurred glow."},
     {v:"1.39.0",d:"2026-08-07",note:"Fixed the weight chart's axis/date text rendering flattened — the preserveAspectRatio fix corrected the dots but missed that text needs the same counter-scale, including the hover tooltip. Goal rails (Income/Training/Weight/Social/Aimee): each one now jumps to its source section on click, same pattern as the attention cards, and their fill bars grow in from 0 instead of just appearing. Scroll-reveal fade/slide-in extended to the goal rails and the KPI row, so more of the dashboard animates in as you scroll, not just the panels."},
     {v:"1.38.0",d:"2026-08-07",note:"Fixed the real cause of the weight chart's wasted space: the SVG's viewBox aspect ratio (320x118, ~2.7:1) never matched its actual rendered box (100% of a wide panel x a fixed 118px, often 6:1+), so the browser's default letterboxing centred the real content in a narrow column with big blank gutters either side — the margin trim last time didn't touch this. Set preserveAspectRatio=\"none\" so the plot stretches to fill the box exactly; verified the line now spans edge to edge. That non-uniform stretch would have turned the round dots into visible ellipses, so each one now carries a counter-scale (computed from the panel's actual measured width, not assumed) to cancel it back out to circular."},
-    {v:"1.37.0",d:"2026-08-07",note:"Weight chart bug: the 2-month window was slice(-60) — the last 60 LOGGED readings, not the last 60 calendar days. Any gap in the data (a missed weigh-in, a stretch before logging started) silently pushed the visible start date further back than 2 months. Now filtered by actual date. Also widened the plotted graph itself (not just the SVG box, which was already full width) by trimming the left/right margins reserved for axis labels — dropped the redundant 'kg' off the baseline label (the panel header right above already says 'baseline 90 kg') to free up the space, plot is about 9% wider."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -1021,8 +1021,13 @@
     return rows.length?Number(rows[0].rate)||0:90;
   }
   function normaliseTutoringLessons(lessonRows,students,rateHistory){
-    var names={}; (students||[]).forEach(function(s){names[s.id]=s.name;});
-    return (lessonRows||[]).map(function(l){
+    // `active` was already fetched from tutoring_students but never actually used — every lesson
+    // got mapped through regardless, so an archived/test student (e.g. a "(TEST)" dummy row) kept
+    // showing up in Maths stats forever. !==false (not !truthy) so a null/undefined active column
+    // defaults to visible, matching the DB column's own default of true.
+    var names={}, activeIds={};
+    (students||[]).forEach(function(s){ names[s.id]=s.name; if(s.active!==false) activeIds[s.id]=true; });
+    return (lessonRows||[]).filter(function(l){ return activeIds[l.student_id]; }).map(function(l){
       var date=l.lesson_date, rawStatus=String(l.status||"").toLowerCase();
       var amount=l.is_complimentary?0:(l.rate_charged!=null?Number(l.rate_charged):rateForLesson(l.student_id,date,rateHistory));
       return {
@@ -1483,7 +1488,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.41.0";
+    document.getElementById("versionLabel").textContent="v1.42.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1873,7 +1878,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.41.0";
+    document.getElementById("versionLabel").textContent="v1.42.0";
   }
 
   // ---------- modes ----------
