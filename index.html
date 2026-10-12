@@ -248,7 +248,6 @@
   .weight-chart{width:100%;height:118px;margin-top:10px;display:block;overflow:visible;touch-action:none}
   .weight-chart .band{fill:rgba(63,185,80,.08)}
   .weight-chart .baseline{stroke:var(--ok);stroke-width:1;stroke-dasharray:4 4;opacity:.75}
-  .weight-chart .limit{stroke:var(--behind);stroke-width:1;stroke-dasharray:3 4;opacity:.75}
   .weight-chart .line{fill:none;stroke:var(--gold);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
   .weight-chart .point{stroke-width:2;cursor:pointer;transition:.1s}
   .weight-chart .point.good{fill:var(--ok);stroke:var(--ok)}
@@ -656,11 +655,11 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.43.0",d:"2026-10-12",note:"Weight goal is now an 85-86 kg target zone reached from above, and weight is judged on position AND direction together instead of direction alone against a 90 kg baseline. Direction uses a 7-day average vs the previous 7-day average (single daily readings swing by up to a kilo, so day-vs-day flipped on noise); flat is -0.3 to +0.5 kg/week. One shared weightAssess() now drives the chart dots, hover tooltip, headline, goal rail, attention card and discipline score so they can never disagree. Chart shows the 85-86 band with both limit lines. Targets are code defaults (weight_target_low/high), metrics.weight_baseline is no longer used."},
     {v:"1.42.0",d:"2026-08-08",note:"Fixed two real data bugs. Maths: tutoring_students.active was fetched but never actually used, so an archived/test student's lessons (e.g. a '(TEST)' dummy row) stayed in the Maths totals forever — now filtered out. Shabbat audit: the underlying Apps Script sync windowed timed_gigs from 'now' forward and fully wipes the table on every run, so a gig permanently vanished the instant its own date passed — including one earlier the same month that broke a Shabbat/Yom Tov slot, which the monthly audit still needs for the rest of that month. Widened to sync from the start of the current month. Requires re-pasting scripts/apps-script-calendar-sync.gs — see ARCHITECTURE.md for the full note, including a remaining limitation around browsing to already-ended months."},
     {v:"1.41.0",d:"2026-08-07",note:"Reverted the day-grid cells back to the coloured-box treatment (category = the box's own colour, done vs scheduled = solid vs dashed border) per feedback — the dot-based version added an element next to text that already barely fit the cell. Text stays centred either way. Removed the 'Last 8 weeks.' caption under the bar chart. Target line now sits behind the bars instead of drawn on top of them, so it only shows through the gaps rather than cutting across the coloured fills."},
     {v:"1.40.0",d:"2026-08-07",note:"Cleaned up the Workouts card, which had accumulated a lot of simultaneous visual language — border colour, border style (solid/dashed), fill and a separately-coloured chip all changing at once to encode category and status. Day cells now use one encoding per idea: category is a small dot's colour (gold/blue), done-vs-scheduled is filled-vs-hollow on that dot plus text brightness, nothing else about the cell changes, and no dashed borders anywhere. Gym/Cardio counts moved to their own quiet row instead of a dense line of bullet separators. Bar chart: target line is now a thin solid reference instead of a bold dashed one competing with the current week's own dashed 'still planned' overlay (also lightened); the target-hit reward is a crisp thin ring instead of a blurred glow."},
     {v:"1.39.0",d:"2026-08-07",note:"Fixed the weight chart's axis/date text rendering flattened — the preserveAspectRatio fix corrected the dots but missed that text needs the same counter-scale, including the hover tooltip. Goal rails (Income/Training/Weight/Social/Aimee): each one now jumps to its source section on click, same pattern as the attention cards, and their fill bars grow in from 0 instead of just appearing. Scroll-reveal fade/slide-in extended to the goal rails and the KPI row, so more of the dashboard animates in as you scroll, not just the panels."},
-    {v:"1.38.0",d:"2026-08-07",note:"Fixed the real cause of the weight chart's wasted space: the SVG's viewBox aspect ratio (320x118, ~2.7:1) never matched its actual rendered box (100% of a wide panel x a fixed 118px, often 6:1+), so the browser's default letterboxing centred the real content in a narrow column with big blank gutters either side — the margin trim last time didn't touch this. Set preserveAspectRatio=\"none\" so the plot stretches to fill the box exactly; verified the line now spans edge to edge. That non-uniform stretch would have turned the round dots into visible ellipses, so each one now carries a counter-scale (computed from the panel's actual measured width, not assumed) to cancel it back out to circular."},
   ];
   function renderChangelog(){
     var el=document.getElementById("changelogList"); if(!el) return;
@@ -842,7 +841,7 @@
     var dSame=new Date(today); dSame.setDate(dSame.getDate()-1); wk.push({date:iso(dSame),type:"Pull day"});
     for(var k=89;k>=0;k--){
       var d2=new Date(today); d2.setDate(d2.getDate()-k);
-      var trend=90.9-(89-k)*0.008, wave=Math.sin(k/5)*0.18, kg=Math.round((trend+wave)*10)/10;
+      var trend=93-(89-k)*0.05, wave=Math.sin(k/5)*0.15+Math.sin(k*1.7)*0.25, kg=Math.round((trend+wave)*10)/10;
       wt.push({date:iso(d2),kg:kg});
     }
     for(var a=0;a<26;a++){ var d3=new Date(today); d3.setDate(d3.getDate()-a*3-1); ls.push({date:iso(d3),status:"done",student:students[a%students.length][0],amount:students[a%students.length][1]}); }
@@ -860,7 +859,7 @@
         booked_this_week:1,booked_this_month:3,booked_month_value:1800,
         social_target_min:3,social_target_max:5,aimee_target_week:1,
         ytd_current:22400,ytd_prev1:15600,ytd_prev2:10800,avg_hr:0,
-        survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:6,workouts_great:7,
+        survival_gross:5764,full_lifestyle_gross:7778,weight_target_low:85,weight_target_high:86,workouts_good:6,workouts_great:7,
         magic_upcoming:[
           {date:fri1,event:"Wedding drinks reception",amount:650},
           {date:sat1,event:"Corporate mixer",amount:850},
@@ -887,7 +886,7 @@
       workouts:wk, weights:wt, lessons:ls
     };
   }
-  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_baseline:90,workouts_good:6,workouts_great:7,social_target_min:3,social_target_max:5,aimee_target_week:1};
+  var DEFAULT_TARGETS={survival_gross:5764,full_lifestyle_gross:7778,weight_target_low:85,weight_target_high:86,workouts_good:6,workouts_great:7,social_target_min:3,social_target_max:5,aimee_target_week:1};
 
   var S={money:{},workouts:[],weights:[],lessons:[],timedGigs:[],relationshipEvents:[],hasData:false,shabbatAudit:null};
   var selectedWorkoutWeek=null;
@@ -1090,35 +1089,73 @@
   function weekRangeLabel(wk){ var start=dateObj(wk),end=dateObj(wk); end.setDate(end.getDate()+6); return fmtD(wk)+" to "+fmtD(iso(end)); }
   function latestWeightEntry(){ if(!S.weights.length) return null; var s=S.weights.slice().sort(function(a,b){return a.date<b.date?1:-1;}); return s[0]; }
   function latestWeight(){ var e=latestWeightEntry(); return e?e.kg:null; }
-  function weightNDaysAgo(refDateISO, days){ // nearest logged weight within 3 days of (ref - days), for a week-over-week comparison
-    var target=dateObj(refDateISO); target.setDate(target.getDate()-days);
-    var best=null, bestDiff=Infinity;
+  // Mean of the readings in the `days` days ending `offsetDays` before endISO (offset 0 includes
+  // endISO itself). Needs at least 2 readings or it's null — one reading isn't an average.
+  function weightAvgWindow(endISO,days,offsetDays){
+    var end=dateObj(endISO); end.setDate(end.getDate()-offsetDays);
+    var start=new Date(end); start.setDate(start.getDate()-days+1);
+    var sum=0,n=0;
     S.weights.forEach(function(w){
-      var diff=Math.abs((dateObj(w.date)-target)/86400000);
-      if(diff<=3 && diff<bestDiff){ best=w.kg; bestDiff=diff; }
+      var d=dateObj(w.date);
+      if(w.kg!=null&&d>=start&&d<=end){ sum+=Number(w.kg); n++; }
     });
-    return best;
+    return n>=2?sum/n:null;
   }
-  function weightTrend(){ // kg change vs ~a week ago; null if there's no reading from back then to compare to
+  // Weekly trend as the 7-day AVERAGE ending at that date minus the 7-day average before it
+  // (negative = losing). This used to be one reading vs one reading a week earlier, but daily
+  // readings swing ±0.5–1kg (88.8 → 87.8 → 87.6 → 87.8 is a normal few days), so a single-point
+  // comparison flipped between "down" and "up" on noise alone — fine when the question was "did it
+  // go up a bit", useless now the goal is "is it actually trending down". null if either week has
+  // too few readings to average.
+  function weightTrendAt(dateISO){
+    var now7=weightAvgWindow(dateISO,7,0), prev7=weightAvgWindow(dateISO,7,7);
+    if(now7==null||prev7==null) return null;
+    return Math.round((now7-prev7)*10)/10;
+  }
+  function weightTrend(){ // latest reading's weekly trend (see weightTrendAt); null if not enough data
     var e=latestWeightEntry(); if(!e) return null;
-    return weightTrendAt(e.date,e.kg);
+    return weightTrendAt(e.date);
   }
-  // Absolute-position goalpost — how far the latest reading sits from baseline, independent of
-  // week-over-week trend. Used only as a fallback where there's no week-old reading to trend off.
-  // Previously three different call sites each invented their own diff<=N cutoff (1/3, 2/4, and
-  // >2/>4) that had drifted out of sync with each other. One shared scale now: at the default
-  // 90kg baseline, <=89kg is fully green, 89-90kg is a lighter green (good but not at the tighter
-  // mark), 90-92kg is watch, beyond that is behind.
-  function weightGoalpost(lw,baseline){
-    var diff=Math.round((lw-baseline)*10)/10;
-    var cls = diff<=-1?"great":diff<=0?"good":diff<=2?"watch":"behind";
-    var col = cls==="great"?"var(--ok)":cls==="good"?"var(--ok-light)":cls==="watch"?"var(--watch)":"var(--behind)";
-    return {diff:diff,cls:cls,col:col};
+  // The target is a ZONE reached from above, not a single line — default 85–86kg. Overridable by
+  // weight_target_low/weight_target_high on the metrics row, but those columns don't exist yet, so
+  // today these are code defaults (the old weight_baseline column is no longer read at all).
+  function weightTarget(){ var m=S.money||{}; return {lo:m.weight_target_low||85, hi:m.weight_target_high||86}; }
+  // One verdict for "how is the weight doing", used everywhere weight is coloured or described
+  // (dots, headline, goal rail, attention card, discipline score) — position and direction judged
+  // TOGETHER. The old logic coloured on direction alone, so "flat or down" read green at any weight
+  // (flat at 91kg was fine) and a rise of up to a kg was only amber. With a target to reach, the
+  // same trend means different things above, in, and below the zone:
+  //   above zone: down = right direction (light green), flat = stalled (amber), up = wrong (red)
+  //   in zone:    fully green, amber only if it's drifting up out of it
+  //   below zone: slightly under and not dropping = fine; still dropping or well under = amber
+  // "flat" is a deliberately wide band (-0.3..+0.5kg on the weekly average) so noise doesn't
+  // read as a verdict; only a clear rise (>=0.5) counts as the wrong way.
+  var WEIGHT_DOWN=-0.3, WEIGHT_UP=0.5;
+  function weightAssess(kg,trend){
+    var t=weightTarget(), lo=t.lo, hi=t.hi, zone=lo+"–"+hi+"kg";
+    var dir=trend==null?null:trend<=WEIGHT_DOWN?"down":trend>=WEIGHT_UP?"up":"flat";
+    var cls, msg, pos=0;
+    if(kg>hi){
+      pos=Math.round((kg-hi)*10)/10;
+      if(dir==="down"){ cls="good"; msg="Weight is "+kg+"kg and trending down ("+Math.abs(trend)+"kg on the week) — "+pos+"kg above the "+zone+" target. Keep going."; }
+      else if(dir==="flat"){ cls="watch"; msg="Weight has stalled at "+kg+"kg — "+pos+"kg above the "+zone+" target. It needs to start dropping."; }
+      else if(dir==="up"){ cls="behind"; msg="Weight is up "+trend+"kg on the week and "+pos+"kg above the "+zone+" target. Get it moving down."; }
+      else { cls=pos<=2?"watch":"behind"; msg="Weight is "+pos+"kg above the "+zone+" target. Log a few more weigh-ins so the trend can read."; }
+    } else if(kg>=lo){
+      if(dir==="up"){ cls="watch"; msg="In the "+zone+" target zone but drifting up ("+trend+"kg on the week). Keep an eye on it."; }
+      else { cls="great"; msg="Weight is in the "+zone+" target zone. Hold it here."; }
+    } else {
+      pos=-Math.round((lo-kg)*10)/10;
+      var under=-pos;
+      if(under<=1&&dir!=="down"){ cls="good"; msg="Weight is "+under+"kg under the "+zone+" target zone and has levelled off. Hold here."; }
+      else { cls="watch"; msg="Weight is "+under+"kg under the "+zone+" target zone"+(dir==="down"?" and still dropping":"")+". Ease off."; }
+    }
+    var col=cls==="great"?"var(--ok)":cls==="good"?"var(--ok-light)":cls==="watch"?"var(--watch)":"var(--behind)";
+    return {cls:cls,col:col,dir:dir,pos:pos,msg:msg,lo:lo,hi:hi};
   }
-  function weightTrendAt(dateISO,kg){ // same week-over-week comparison, but for an arbitrary point (used per chart dot)
-    var prior=weightNDaysAgo(dateISO,7); if(prior==null) return null;
-    return Math.round((kg-prior)*10)/10;
-  }
+  // Short fragments for the places that can't fit the full message (headline, goal rail).
+  function weightPosText(a){ return a.pos>0?a.pos+"kg above target":a.pos<0?(-a.pos)+"kg under target":"in target zone"; }
+  function weightDirText(a){ return a.dir==="down"?"trending down":a.dir==="up"?"trending up":a.dir==="flat"?"flat this week":"no trend yet"; }
   // Weight-chart crosshair: finds the nearest logged point to the pointer's X position (not the
   // exact dot) and shows a vertical line + the value above it. Works from a click/tap anywhere in
   // the plot area, and updates continuously while a finger (or mouse) drags across it — attached
@@ -1162,8 +1199,7 @@
     tipRect.setAttribute("width",boxW.toFixed(1)); tipRect.setAttribute("height",boxH);
     tipText.setAttribute("x",lx.toFixed(1)); tipText.setAttribute("y",(ly+2).toFixed(1));
     tipText.textContent=labelText;
-    var trendAtPt=weightTrendAt(nearest[2].date,nearest[2].kg);
-    tipText.style.fill=trendAtPt==null?"var(--ok)":(trendAtPt<=0?"var(--ok)":trendAtPt<=1?"var(--watch)":"var(--behind)");
+    tipText.style.fill=weightAssess(nearest[2].kg,weightTrendAt(nearest[2].date)).col;
     // Same counter-scale as the dots/axis text (see render()) — the box+text geometry above is
     // still authored in the original 320-unit space, this just cancels the ambient non-uniform
     // stretch so the tooltip renders at its intended proportions instead of stretched wide.
@@ -1352,9 +1388,10 @@
       // real sessions matched neither "===2" nor "===1" and scored a flat 0. Math.ceil(good/2)
       // reproduces the same shape (great/good/half-good/some/none) for whatever good/great are.
       var wS=c>=great?10:c>=good?8:c>=Math.ceil(good/2)?6:c>0?3:0;
-      var lw=latestWeight(), trend=weightTrend(), wtS=6;
-      if(trend!=null) wtS = trend<=0?10 : trend<=1?7 : 4; // trending down/flat vs a week ago is what matters, not a hard absolute line
-      else if(lw!=null){ var gp=weightGoalpost(lw,m.weight_baseline||90); wtS=gp.cls==="great"?9:gp.cls==="good"?7:gp.cls==="watch"?5:3; } // softened fallback when there's no week-ago reading yet
+      var lw=latestWeight(), wtS=6;
+      // Same verdict the weight panel shows (position vs the target zone AND weekly direction),
+      // so the score can't say one thing while the colours say another.
+      if(lw!=null){ var wa=weightAssess(lw,weightTrend()); wtS=wa.cls==="great"?10:wa.cls==="good"?8:wa.cls==="watch"?5:3; }
       discipline=Math.round(0.6*wS+0.4*wtS);
     }
     var overall= discipline==null? Math.round((money*0.55+momentum*0.45)*10)/10 : Math.round((money*0.4+momentum*0.35+discipline*0.25)*10)/10;
@@ -1409,13 +1446,12 @@
     var workoutPct=pct(c,good), workoutCls=workoutPace(c,good,great).cls;
     var socialCount=socialEventsThisMonth().length, socialMin=m.social_target_min||3, socialMax=m.social_target_max||5, socialP=socialPace(socialCount,socialMin,socialMax,new Date());
     var aimeeCount=aimeeEventsThisWeek().length, aimeeTarget=m.aimee_target_week||1, aimeeP=aimeePace(aimeeCount,aimeeTarget,dayOfWeekIndex(new Date()));
-    var trend=weightTrend(), weightCls="watch", weightPct=55, weightNote="log a recent weigh-in";
-    if(lw!=null&&trend!=null){ weightCls=trend<=0?"ok":trend<=1?"watch":"behind"; weightPct=trend<=0?100:trend<=1?70:35; weightNote=(trend<=0?"down/flat":("+"+trend+"kg"))+" vs last week"; }
-    else if(lw!=null){
-      var gpr=weightGoalpost(lw,m.weight_baseline||90); // rail only has 3 colour tiers, so "great"/"good" both read as ok here — the lighter-green distinction lives on weightDelta below, which does have a 4th tier
-      weightCls=(gpr.cls==="great"||gpr.cls==="good")?"ok":gpr.cls;
-      weightPct=gpr.cls==="great"?100:gpr.cls==="good"?85:gpr.cls==="watch"?55:25;
-      weightNote=(gpr.diff>=0?"+":"")+gpr.diff+"kg vs baseline";
+    var weightCls="watch", weightPct=55, weightNote="log a recent weigh-in";
+    if(lw!=null){
+      var wra=weightAssess(lw,weightTrend()); // rail only has 3 colour tiers, so "great"/"good" both read as ok here — the lighter-green distinction lives on the weight panel's headline, which does have a 4th tier
+      weightCls=(wra.cls==="great"||wra.cls==="good")?"ok":wra.cls;
+      weightPct=wra.cls==="great"?100:wra.cls==="good"?80:wra.cls==="watch"?50:25;
+      weightNote=weightPosText(wra)+" · "+weightDirText(wra);
     }
     var rails=[
       railHTML("Income",pv(gbp(income)),incomePct,incomeCls,income>=full?"full lifestyle covered":income>=surv?gbp(full-income)+" to full lifestyle":gbp(surv-income)+" to survival","kpi-income"),
@@ -1456,17 +1492,9 @@
     else items.push({kind:dayOfWeekIndex(new Date())<=2?"watch":"behind",label:"Training",target:"kpi-workouts",msg:"Nothing done or booked this week yet. "+(dayOfWeekIndex(new Date())<=2?"Plenty of week left — get "+WORKOUT_GYM_TARGET+" gym + "+WORKOUT_CARDIO_TARGET+" cardio in the diary.":"Book "+good+" now before the week runs out.")});
     if(lw==null) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"No weight logged yet. Add a weigh-in so the discipline score reads true."});
     else{
-      var trend=weightTrend();
-      if(trend!=null){
-        if(trend<=0) items.push({kind:"ok",label:"Good",target:"weightPanel",msg:"Weight is "+(trend<0?Math.abs(trend)+"kg down":"flat")+" vs a week ago. Good trajectory."});
-        else if(trend<=1) items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Keep an eye on it."});
-        else items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is up "+trend+"kg vs a week ago. Get back on track this week."});
-      } else {
-        var gpa=weightGoalpost(lw,m.weight_baseline||90);
-        if(gpa.cls==="behind") items.push({kind:"behind",label:"Action",target:"weightPanel",msg:"Weight is +"+gpa.diff+"kg vs baseline. Log a weigh-in from a week ago too so this reads on trend."});
-        else if(gpa.cls==="watch") items.push({kind:"watch",label:"Watch",target:"weightPanel",msg:"Weight is +"+gpa.diff+"kg vs baseline."});
-        else items.push({kind:"ok",label:"Good",target:"weightPanel",msg:gpa.cls==="great"?"Weight is at or under the "+(m.weight_baseline||90)+"kg target.":"Weight is close to target."});
-      }
+      var wa2=weightAssess(lw,weightTrend()); // the full wording lives in weightAssess so every surface says the same thing
+      var wKind=(wa2.cls==="great"||wa2.cls==="good")?"ok":wa2.cls;
+      items.push({kind:wKind,label:wKind==="ok"?"Good":wKind==="watch"?"Watch":"Action",target:"weightPanel",msg:wa2.msg});
     }
     if(income<survival) items.push({kind:"behind",label:"Action",target:"kpi-income",msg:"Monthly income is "+gbp(survival-income)+" short of the survival line."});
     else if(income<full) items.push({kind:"watch",label:"Watch",target:"kpi-income",msg:"Monthly income is "+gbp(full-income)+" short of the full lifestyle line."});
@@ -1488,7 +1516,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.42.0";
+    document.getElementById("versionLabel").textContent="v1.43.0";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1690,15 +1718,14 @@
     growBarsIn();
 
     // weight
-    document.getElementById("weightBaselineLabel").textContent="· baseline "+(m.weight_baseline||90)+" kg";
+    var wTarget=weightTarget();
+    document.getElementById("weightBaselineLabel").textContent="· target "+wTarget.lo+"–"+wTarget.hi+" kg";
     document.getElementById("weightNow").innerHTML=lw!=null?pv(lw+" kg"):"--";
     var dEl=document.getElementById("weightDelta"), wTrend=weightTrend();
-    if(lw!=null&&wTrend!=null){
-      var tcol=wTrend<=0?"var(--ok)":wTrend<=1?"var(--watch)":"var(--behind)";
-      dEl.innerHTML='<span style="color:'+tcol+'">'+pv((wTrend>0?"+":"")+wTrend+" kg")+' vs a week ago</span>';
-    } else if(lw!=null){
-      var gpd=weightGoalpost(lw,m.weight_baseline||90);
-      dEl.innerHTML='<span style="color:'+gpd.col+'">'+pv((gpd.diff>0?"+":"")+gpd.diff+" kg")+' vs baseline (no week-ago reading yet)</span>';
+    if(lw!=null){
+      var wha=weightAssess(lw,wTrend);
+      // Colour carries the verdict (position + direction together); the text says both parts.
+      dEl.innerHTML='<span style="color:'+wha.col+'">'+(wTrend!=null?pv((wTrend>0?"+":"")+wTrend+" kg")+' on the week (7-day avg)':'not enough readings for a weekly trend yet')+'</span> <span class="faint">· '+pv(weightPosText(wha))+'</span>';
     } else dEl.innerHTML='<span class="faint">no weight logged</span>';
     // Bounded by calendar date, not row count — slice(-60) took the last 60 LOGGED readings,
     // which silently reaches further back than 60 days the moment there's any gap in the data
@@ -1713,17 +1740,17 @@
     }
     var chart=document.getElementById("weightChart");
     if(sw.length){
-      var valsForCalc=sw.map(function(x){return x.kg;}).filter(function(v){return v!=null;}),baseLine=m.weight_baseline||90,limit=baseLine+1;
-      var mn=Math.min.apply(null,valsForCalc.concat([baseLine,limit]))-0.5,mxx=Math.max.apply(null,valsForCalc.concat([baseLine,limit]))+0.5,rng=Math.max(1,mxx-mn);
+      var valsForCalc=sw.map(function(x){return x.kg;}).filter(function(v){return v!=null;}),tLo=wTarget.lo,tHi=wTarget.hi;
+      var mn=Math.min.apply(null,valsForCalc.concat([tLo,tHi]))-0.5,mxx=Math.max.apply(null,valsForCalc.concat([tLo,tHi]))+0.5,rng=Math.max(1,mxx-mn);
       // left was 24 (to fit a "90kg" label), right was 10 — reclaimed most of that by dropping the
-      // redundant "kg" (the panel header right above already says "baseline 90 kg") down to just
-      // "90", and trimming right since nothing needs that much room there. Plot is ~9% wider.
+      // redundant "kg" (the panel header right above already states the target) down to just the
+      // number, and trimming right since nothing needs that much room there. Plot is ~9% wider.
       var left=14,right=5,top=10,bottom=22,w=320-left-right,h=118-top-bottom;
       function xAt(i){ return sw.length===1? left+w/2 : left+(i/(sw.length-1))*w; }
       function yAt(v){ return top+(mxx-v)/rng*h; }
       var pts=sw.map(function(x,i){return [xAt(i),x.kg!=null?yAt(x.kg):null,x];});
       var polyPts=pts.filter(function(p){return p[1]!=null;}).map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
-      var yBase=yAt(baseLine), yLimit=yAt(limit), yTop=Math.min(yBase,yLimit), bandH=Math.abs(yLimit-yBase);
+      var yHi=yAt(tHi), yLo=yAt(tLo), bandH=yLo-yHi; // heavier weight = higher kg = smaller y, so tHi's line is the TOP of the band
       // vertical divider at each week boundary
       var dividers="";
       for(var di=1;di<pts.length;di++){
@@ -1738,22 +1765,23 @@
       // dot's tooltip box if they overlapped.
       var dotsSvg=pts.map(function(p){
         if(p[1]===null) return '';
-        // Colour each dot by its own week-over-week trend (vs a reading ~7 days before IT, not "today"),
-        // same logic as the headline. A one-day uptick that's still part of a good weekly trend won't
-        // flash red — only a genuine week-over-week rise does. No comparison available yet = neutral, not bad.
-        var trendAtPt=weightTrendAt(p[2].date,p[2].kg);
-        var cls = trendAtPt==null?"good":(trendAtPt<=0?"good":trendAtPt<=1?"watch":"bad");
+        // Colour each dot with the same verdict the headline uses, judged AT THAT POINT (its own
+        // weekly trend and its own position vs the target zone, not "today's"), so the line reads as
+        // a history of how it was going — stalled stretches show amber, rising ones red, a clear
+        // downward run toward the zone green. The chart only has 3 dot colours, so great/good share one.
+        var wpa=weightAssess(p[2].kg,weightTrendAt(p[2].date));
+        var cls=(wpa.cls==="great"||wpa.cls==="good")?"good":wpa.cls==="watch"?"watch":"bad";
         return '<circle class="point '+cls+'" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.4"></circle>';
       }).join("");
       chart.innerHTML=
-        '<rect class="band" x="'+left+'" y="'+yTop.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
+        '<rect class="band" x="'+left+'" y="'+yHi.toFixed(1)+'" width="'+w+'" height="'+bandH.toFixed(1)+'"></rect>'+
         dividers+
-        '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yBase.toFixed(1)+'" y2="'+yBase.toFixed(1)+'"></line>'+
-        '<line class="limit" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLimit.toFixed(1)+'" y2="'+yLimit.toFixed(1)+'"></line>'+
+        '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yHi.toFixed(1)+'" y2="'+yHi.toFixed(1)+'"></line>'+
+        '<line class="baseline" x1="'+left+'" x2="'+(left+w)+'" y1="'+yLo.toFixed(1)+'" y2="'+yLo.toFixed(1)+'"></line>'+
         '<polyline class="line" points="'+polyPts+'"></polyline>'+
         '<g>'+dotsSvg+'</g>'+
-        '<text class="pv chart-text" x="0" y="'+(yBase+3).toFixed(1)+'">'+baseLine+'</text>'+
-        '<text class="pv chart-text" x="0" y="'+(yLimit+3).toFixed(1)+'">+1</text>'+
+        '<text class="pv chart-text" x="0" y="'+(yHi+3).toFixed(1)+'">'+tHi+'</text>'+
+        '<text class="pv chart-text" x="0" y="'+(yLo+3).toFixed(1)+'">'+tLo+'</text>'+
         '<text class="chart-text" x="'+left+'" y="114">'+fmtD(sw[0].date)+'</text>'+
         '<text class="chart-text" x="'+(left+w-32)+'" y="114">'+fmtD(sw[sw.length-1].date)+'</text>'+
         '<rect class="hit-area" x="0" y="0" width="320" height="118"></rect>'+
@@ -1878,7 +1906,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.42.0";
+    document.getElementById("versionLabel").textContent="v1.43.0";
   }
 
   // ---------- modes ----------

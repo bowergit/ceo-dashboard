@@ -54,6 +54,11 @@ targets/config (survival income line, workout targets, social/Aimee targets, etc
 else is one table per data domain, mirroring how `workouts` already worked (raw rows, dashboard
 computes stats client-side — no table stores a pre-aggregated count).
 
+Weight targets: the 85–86 kg zone is a code default (`weight_target_low` / `weight_target_high` in
+`DEFAULT_TARGETS`), overridable by adding those columns to `metrics`. `metrics.weight_baseline` is no
+longer read. The weight verdict (`weightAssess`) combines position vs that zone with a weekly trend
+(7-day average minus the previous 7-day average) computed from `weights` rows client-side.
+
 | Table | Written by | Read by | RLS |
 |---|---|---|---|
 | `metrics` | Daniel, manually, via Supabase dashboard | `index.html` Live mode | SELECT restricted to the two-account allowlist below. No anon/public policy exists — this table's row is only ever read by an owner session; writes happen via the Supabase dashboard directly (project-owner context, outside RLS), never through the app. (An earlier version of this doc said "anon read/write" here — that was never actually true against the live policy set; corrected 2026-08-06.) |
