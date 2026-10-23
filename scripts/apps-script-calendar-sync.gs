@@ -24,7 +24,7 @@ var CONFIG = {
 
   WORKOUTS: {
     LOOKBACK_DAYS: 90,
-    SKIP_TITLE_CONTAINS: ["security volunteer"],
+    SKIP_TITLE_CONTAINS: ["security volunteer", "hhd security"],
     SYNC_SHEET_ID: "1b-Smzvo1066R2mH4uIZ7nPlNIYscqlU8EarSAhXo2Xw",
     SYNC_SHEET_NAME: "Sync",
     ARCHIVE_SHEET_NAME: "Sync Archive"
