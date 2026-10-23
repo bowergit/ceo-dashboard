@@ -655,6 +655,7 @@
   // change should prepend a new entry here and drop the oldest, so the footer and anyone
   // re-reading this file cold can see what happened recently without digging through git log.
   var CHANGELOG=[
+    {v:"1.43.1",d:"2026-10-23",note:"Rowing and yoga now count as cardio in the 3 gym + 3 cardio weekly split."},
     {v:"1.43.0",d:"2026-10-12",note:"Weight goal is now an 85-86 kg target zone reached from above, and weight is judged on position AND direction together instead of direction alone against a 90 kg baseline. Direction uses a 7-day average vs the previous 7-day average (single daily readings swing by up to a kilo, so day-vs-day flipped on noise); flat is -0.3 to +0.5 kg/week. One shared weightAssess() now drives the chart dots, hover tooltip, headline, goal rail, attention card and discipline score so they can never disagree. Chart shows the 85-86 band with both limit lines. Targets are code defaults (weight_target_low/high), metrics.weight_baseline is no longer used."},
     {v:"1.42.0",d:"2026-08-08",note:"Fixed two real data bugs. Maths: tutoring_students.active was fetched but never actually used, so an archived/test student's lessons (e.g. a '(TEST)' dummy row) stayed in the Maths totals forever — now filtered out. Shabbat audit: the underlying Apps Script sync windowed timed_gigs from 'now' forward and fully wipes the table on every run, so a gig permanently vanished the instant its own date passed — including one earlier the same month that broke a Shabbat/Yom Tov slot, which the monthly audit still needs for the rest of that month. Widened to sync from the start of the current month. Requires re-pasting scripts/apps-script-calendar-sync.gs — see ARCHITECTURE.md for the full note, including a remaining limitation around browsing to already-ended months."},
     {v:"1.41.0",d:"2026-08-07",note:"Reverted the day-grid cells back to the coloured-box treatment (category = the box's own colour, done vs scheduled = solid vs dashed border) per feedback — the dot-based version added an element next to text that already barely fit the cell. Text stays centred either way. Removed the 'Last 8 weeks.' caption under the bar chart. Target line now sits behind the bars instead of drawn on top of them, so it only shows through the gaps rather than cutting across the coloured fills."},
@@ -968,7 +969,7 @@
   // run/running, cycle/cycling, etc.) without enumerating every form, and so "run" can't match
   // mid-word (e.g. "brunch" — \b requires a word-boundary immediately before the match).
   // "padel" deliberately excludes "paddle"/paddleboarding — different sport, never asked for.
-  var CARDIO_TITLE_RE=/\b(walk|run|cycl|bik|krav|bjj|jiu|grappl|wrestl|hiit|hik|tennis|badminton|pickl|squash|padel)/i;
+  var CARDIO_TITLE_RE=/\b(walk|run|cycl|bik|krav|bjj|jiu|grappl|wrestl|hiit|hik|tennis|badminton|pickl|squash|padel|rowing|yoga)/i;
   function isCardioWorkout(w){ return CARDIO_TITLE_RE.test(w.type||""); }
   // .test() short-circuits on the first matching keyword, so an event matching several (e.g.
   // "Wrestling & Grappling") is still only ever counted once here.
@@ -1516,7 +1517,7 @@
 
   // ---------- render ----------
   function render(){
-    document.getElementById("versionLabel").textContent="v1.43.0";
+    document.getElementById("versionLabel").textContent="v1.43.1";
     paintSourceBadges();
     renderDailyPrompt();
     var sc=scores(), vd=verdict(sc), m=S.money;
@@ -1906,7 +1907,7 @@
     document.getElementById("shabbatDetail").innerHTML='<div class="small faint">Add timed gigs to audit Shabbat and Yom Tov protection.</div>';
     document.getElementById("socialBig").textContent="--"; document.getElementById("socialFoot").textContent=""; document.getElementById("socialTiles").innerHTML=""; document.getElementById("socialDetail").innerHTML="";
     document.getElementById("aimeeBig").textContent="--"; document.getElementById("aimeeFoot").textContent=""; document.getElementById("aimeeTiles").innerHTML=""; document.getElementById("aimeeDetail").innerHTML="";
-    document.getElementById("versionLabel").textContent="v1.43.0";
+    document.getElementById("versionLabel").textContent="v1.43.1";
   }
 
   // ---------- modes ----------
